@@ -1,0 +1,130 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id_user     Int      @id @default(autoincrement())
+  nom         String
+  prenom      String
+  login       String   @unique
+  mot_de_passe String
+  role        String   @default("gerant")
+
+  @@map("users")
+}
+
+model Chambre {
+  id_chambre      Int     @id @default(autoincrement())
+  numero          String  @unique
+  type_chambre    String
+  prix            Float
+  statut          String  @default("Libre")
+  contrat_chambres ContratChambre[]
+  clients         Client[]
+}
+
+model Client {
+  id_client     Int      @id @default(autoincrement())
+  nom           String
+  prenom        String
+  sexe          String
+  telephone     String?
+  profession    String?
+  id_chambre    Int?
+  date_entree   DateTime
+  statut        String   @default("Actif")
+  contrats      Contrat[]
+  paiements     Paiement[]
+  chambre       Chambre? @relation(fields: [id_chambre], references: [id_chambre])
+}
+
+model Contrat {
+  id_contrat    Int      @id @default(autoincrement())
+  id_client     Int
+  date_debut    DateTime
+  date_fin      DateTime?
+  montant       Float
+  client        Client   @relation(fields: [id_client], references: [id_client])
+  contrat_chambres ContratChambre[]
+  paiements     Paiement[]
+}
+
+model ContratChambre {
+  id_contrat  Int
+  id_chambre  Int
+  contrat     Contrat @relation(fields: [id_contrat], references: [id_contrat])
+  chambre     Chambre @relation(fields: [id_chambre], references: [id_chambre])
+
+  @@id([id_contrat, id_chambre])
+}
+
+model Paiement {
+  id_paiement   Int      @id @default(autoincrement())
+  id_client     Int
+  id_contrat    Int?
+  date_paiement DateTime
+  mois_paye     String
+  mois_ym       String?
+  montant       Float
+  statut        String   @default("Complet")
+  numero_recu   String   @unique
+  client        Client   @relation(fields: [id_client], references: [id_client])
+  contrat       Contrat? @relation(fields: [id_contrat], references: [id_contrat])
+}
+
+model PaiementArchive {
+  id_paiement   Int      @id
+  id_client     Int?
+  id_contrat    Int?
+  date_paiement DateTime?
+  mois_paye     String?
+  mois_ym       String?
+  montant       Float?
+  statut        String?
+  numero_recu   String?
+}
+
+model Depense {
+  id_depense   Int      @id @default(autoincrement())
+  libelle      String
+  montant      Float
+  date_depense DateTime
+}
+
+model DepenseArchive {
+  id_depense   Int     @id
+  libelle      String?
+  montant      Float?
+  date_depense DateTime?
+}
+
+model Cloture {
+  id_cloture     Int      @id @default(autoincrement())
+  mois           String   @unique
+  date_cloture   DateTime
+  total_du       Float   @default(0)
+  total_encaisse Float   @default(0)
+  total_depense  Float   @default(0)
+  solde          Float   @default(0)
+  statut         String  @default("Validé")
+  valide_par     String?
+  commentaire    String?
+}
+
+model AuditLog {
+  id_audit    Int      @id @default(autoincrement())
+  date_action DateTime
+  utilisateur String?
+  action      String
+  details     String?
+}
+
+model AppConfig {
+  cle    String   @id
+  valeur String?
+}
