@@ -33,37 +33,46 @@ type PaiementPreview = {
   mois_ym?: string | null;
 };
 
-// Produces real monthly revenue bars based on paiements data
-function buildMonthlyBars(paiements: PaiementPreview[], depensesTotal: number) {
+type DepensePreview = {
+  id_depense: number;
+  montant: number;
+  date_depense: string;
+};
+
+type MonthBar = { label: string; revenue: number; depense: number; revHeight: number; depHeight: number };
+
+function buildMonthlyBars(paiements: PaiementPreview[], depenses: DepensePreview[]): MonthBar[] {
   const now = new Date();
   const months: { label: string; ym: string }[] = [];
   for (let i = 5; i >= 0; i--) {
     const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-    const label = d.toLocaleDateString('fr-FR', { month: 'short' });
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const label = d.toLocaleDateString("fr-FR", { month: "short" });
     months.push({ label, ym });
   }
 
   const revenueByMonth: Record<string, number> = {};
-  for (const m of months) revenueByMonth[m.ym] = 0;
+  const depenseByMonth: Record<string, number> = {};
+  for (const m of months) { revenueByMonth[m.ym] = 0; depenseByMonth[m.ym] = 0; }
+
   for (const p of paiements) {
-    if (p.mois_ym && revenueByMonth[p.mois_ym] !== undefined) {
+    if (p.mois_ym && revenueByMonth[p.mois_ym] !== undefined)
       revenueByMonth[p.mois_ym] += p.montant;
-    }
+  }
+  for (const d of depenses) {
+    const ym = new Date(d.date_depense).toISOString().slice(0, 7);
+    if (depenseByMonth[ym] !== undefined) depenseByMonth[ym] += d.montant;
   }
 
-  const values = months.map(m => revenueByMonth[m.ym]);
-  const maxVal = Math.max(...values, 1);
+  const allValues = months.flatMap(m => [revenueByMonth[m.ym], depenseByMonth[m.ym]]);
+  const maxVal = Math.max(...allValues, 1);
 
-  // Approx depenses per month
-  const depPerMonth = depensesTotal / 6;
-
-  return months.map((m, i) => ({
+  return months.map(m => ({
     label: m.label,
-    revenue: values[i],
-    depense: depPerMonth,
-    revHeight: Math.round((values[i] / maxVal) * 140),
-    depHeight: Math.round((Math.min(depPerMonth, maxVal) / maxVal) * 140),
+    revenue: revenueByMonth[m.ym],
+    depense: depenseByMonth[m.ym],
+    revHeight: Math.round((revenueByMonth[m.ym] / maxVal) * 140),
+    depHeight: Math.round((depenseByMonth[m.ym] / maxVal) * 140),
   }));
 }
 
@@ -72,6 +81,7 @@ export default function DashboardPage() {
   const [latestContracts, setLatestContracts] = useState<ContratPreview[]>([]);
   const [latestPayments, setLatestPayments] = useState<PaiementPreview[]>([]);
   const [allPayments, setAllPayments] = useState<PaiementPreview[]>([]);
+  const [allDepenses, setAllDepenses] = useState<DepensePreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,53 +89,54 @@ export default function DashboardPage() {
     async function loadDashboard() {
       setLoading(true);
       try {
-        const [summaryRes, contratsRes, paiementsRes] = await Promise.all([
+        const [summaryRes, contratsRes, paiementsRes, depensesRes] = await Promise.all([
           fetch("/api/summary", { cache: "no-store" }),
           fetch("/api/contrats", { cache: "no-store" }),
           fetch("/api/paiements", { cache: "no-store" }),
+          fetch("/api/depenses", { cache: "no-store" }),
         ]);
 
-        if (!summaryRes.ok || !contratsRes.ok || !paiementsRes.ok) {
+        if (!summaryRes.ok || !contratsRes.ok || !paiementsRes.ok || !depensesRes.ok) {
           throw new Error("Impossible de charger les donnees du tableau de bord.");
         }
 
         const summaryData = await summaryRes.json();
         const contratsData = await contratsRes.json();
         const paiementsData = await paiementsRes.json();
+        const depensesData = await depensesRes.json();
 
         const contractsList = (contratsData.contrats || [])
           .slice()
-          .sort((a: any, b: any) => new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime())
+          .sort((a: ContratPreview, b: ContratPreview) => new Date(b.date_debut).getTime() - new Date(a.date_debut).getTime())
           .slice(0, 5);
 
         const paymentsList = (paiementsData.paiements || [])
           .slice()
-          .sort((a: any, b: any) => new Date(b.date_paiement).getTime() - new Date(a.date_paiement).getTime())
+          .sort((a: PaiementPreview, b: PaiementPreview) => new Date(b.date_paiement).getTime() - new Date(a.date_paiement).getTime())
           .slice(0, 5);
 
         setSummary(summaryData);
         setLatestContracts(contractsList);
         setLatestPayments(paymentsList);
         setAllPayments(paiementsData.paiements || []);
+        setAllDepenses(depensesData.depenses || []);
         setError(null);
-      } catch (err) {
+      } catch {
         setError("Impossible de charger les donnees du tableau de bord.");
       } finally {
         setLoading(false);
       }
     }
-
     loadDashboard();
   }, []);
 
-  // Calcul des alertes dynamiques
   const now = new Date();
-  const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 
   const paidThisMonth = new Set(
     allPayments
       .filter(p => p.mois_ym === currentYM)
-      .map(p => p.client ? `${p.client.nom} ${p.client.prenom}` : '')
+      .map(p => p.client ? `${p.client.nom} ${p.client.prenom}` : "")
   );
 
   const retardsCount = Math.max(0, (summary?.clients ?? 0) - paidThisMonth.size);
@@ -136,11 +147,10 @@ export default function DashboardPage() {
     return diff >= 0 && diff <= 30;
   }).length;
 
-  // Graphique dynamique
-  const bars = buildMonthlyBars(allPayments, summary?.totalDepenses ?? 0);
+  const bars = buildMonthlyBars(allPayments, allDepenses);
 
   function formatDate(d: string) {
-    try { return new Date(d).toLocaleDateString('fr-FR'); } catch { return d; }
+    try { return new Date(d).toLocaleDateString("fr-FR"); } catch { return d; }
   }
 
   return (
@@ -162,7 +172,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Grille Principale des Metriques */}
       <section className="grid-4">
         <article className="metric-card" style={{ borderLeft: "5px solid #38bdf8" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
@@ -203,24 +212,19 @@ export default function DashboardPage() {
         </article>
       </section>
 
-      {/* Graphiques et Alertes */}
       <section className="grid-3" style={{ gridTemplateColumns: "2fr 1fr 1fr" }}>
-
-        {/* Graphique dynamique */}
+        {/* Graphique */}
         <div className="panel" style={{ padding: "24px" }}>
           <h3 style={{ margin: "0 0 16px 0", fontSize: "1.15rem", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <span>📊 Flux financier (6 derniers mois)</span>
             <span style={{ fontSize: "0.85rem", fontWeight: 500, color: "#64748b" }}>en GNF</span>
           </h3>
-
           <div style={{ position: "relative", height: "200px", width: "100%", marginTop: "20px" }}>
             <svg viewBox="0 0 500 200" style={{ width: "100%", height: "100%" }}>
-              {/* Lignes de repere */}
               <line x1="40" y1="20" x2="480" y2="20" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
               <line x1="40" y1="80" x2="480" y2="80" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
               <line x1="40" y1="140" x2="480" y2="140" stroke="rgba(255,255,255,0.05)" strokeDasharray="4 4" />
               <line x1="40" y1="170" x2="480" y2="170" stroke="rgba(255,255,255,0.1)" />
-
               {bars.map((bar, i) => {
                 const x = 70 + i * 68;
                 const revH = Math.max(bar.revHeight, 4);
@@ -235,7 +239,6 @@ export default function DashboardPage() {
               })}
             </svg>
           </div>
-
           <div style={{ display: "flex", gap: "20px", marginTop: "14px", justifyContent: "center", fontSize: "0.85rem" }}>
             <span style={{ display: "flex", alignItems: "center", gap: "6px" }}>
               <span style={{ display: "inline-block", width: "12px", height: "12px", background: "#38bdf8", borderRadius: "3px" }}></span>
@@ -248,7 +251,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Disponibilite Logement */}
+        {/* Disponibilite */}
         <div className="panel" style={{ padding: "24px", display: "flex", flexDirection: "column" }}>
           <h3 style={{ margin: "0 0 16px 0", fontSize: "1.15rem" }}>🧹 Disponibilite</h3>
           <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: "10px" }}>
@@ -267,53 +270,55 @@ export default function DashboardPage() {
             <p style={{ fontSize: "0.9rem", color: "#94a3b8", textAlign: "center", margin: "10px 0 0 0" }}>
               {loading ? "Chargement..." : `${summary?.chambresOccupees ?? 0} occupees sur ${summary?.chambres ?? 0} disponibles.`}
             </p>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', justifyContent: 'center', marginTop: '8px' }}>
-              <span style={{ fontSize: '0.8rem', background: 'rgba(52,211,153,0.12)', color: '#34d399', padding: '4px 10px', borderRadius: '999px' }}>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", justifyContent: "center", marginTop: "8px" }}>
+              <span style={{ fontSize: "0.8rem", background: "rgba(52,211,153,0.12)", color: "#34d399", padding: "4px 10px", borderRadius: "999px" }}>
                 🟢 {summary?.chambresLibres ?? 0} libres
               </span>
-              <span style={{ fontSize: '0.8rem', background: 'rgba(248,113,113,0.12)', color: '#f87171', padding: '4px 10px', borderRadius: '999px' }}>
+              <span style={{ fontSize: "0.8rem", background: "rgba(248,113,113,0.12)", color: "#f87171", padding: "4px 10px", borderRadius: "999px" }}>
                 🟠 {summary?.chambresOccupees ?? 0} occupees
               </span>
             </div>
           </div>
         </div>
 
-        {/* Actions Urgentes Dynamiques */}
+        {/* Actions Urgentes */}
         <div className="panel" style={{ padding: "24px" }}>
           <h3 style={{ margin: "0 0 16px 0", fontSize: "1.15rem", color: "#fbbf24" }}>⚠ Actions Urgentes</h3>
           <div style={{ display: "flex", flexDirection: "column", gap: "12px", fontSize: "0.88rem" }}>
             {loading ? (
-              <p style={{ color: '#64748b' }}>Calcul en cours...</p>
+              <p style={{ color: "#64748b" }}>Calcul en cours...</p>
             ) : (
               <>
-                <div style={{ background: retardsCount > 0 ? "rgba(245, 158, 11, 0.1)" : "rgba(52,211,153,0.08)", border: `1px solid ${retardsCount > 0 ? "rgba(245,158,11,0.2)" : "rgba(52,211,153,0.2)"}`, padding: "12px", borderRadius: "14px" }}>
-                  <strong>{retardsCount > 0 ? '⚠️ Relances Loyers' : '✅ Loyers du mois'}</strong>
-                  <p style={{ margin: "4px 0 0 0", color: "#cbd5e1" }}>
-                    {retardsCount > 0
-                      ? `${retardsCount} locataire(s) n'ont pas encore paye ce mois-ci.`
-                      : 'Tous les locataires ont paye ce mois-ci.'}
-                  </p>
-                </div>
+                <Link href="/retards" style={{ textDecoration: "none" }}>
+                  <div style={{ background: retardsCount > 0 ? "rgba(245,158,11,0.1)" : "rgba(52,211,153,0.08)", border: `1px solid ${retardsCount > 0 ? "rgba(245,158,11,0.2)" : "rgba(52,211,153,0.2)"}`, padding: "12px", borderRadius: "14px", cursor: "pointer" }}>
+                    <strong>{retardsCount > 0 ? "⚠️ Relances Loyers" : "✅ Loyers du mois"}</strong>
+                    <p style={{ margin: "4px 0 0 0", color: "#cbd5e1" }}>
+                      {retardsCount > 0
+                        ? `${retardsCount} locataire(s) n'ont pas encore paye ce mois-ci.`
+                        : "Tous les locataires ont paye ce mois-ci."}
+                    </p>
+                  </div>
+                </Link>
 
-                <div style={{ background: expiringSoon > 0 ? "rgba(56, 189, 248, 0.1)" : "rgba(52,211,153,0.08)", border: `1px solid ${expiringSoon > 0 ? "rgba(56,189,248,0.2)" : "rgba(52,211,153,0.2)"}`, padding: "12px", borderRadius: "14px" }}>
-                  <strong>{expiringSoon > 0 ? '📋 Fin de Contrats' : '✅ Contrats OK'}</strong>
+                <div style={{ background: expiringSoon > 0 ? "rgba(56,189,248,0.1)" : "rgba(52,211,153,0.08)", border: `1px solid ${expiringSoon > 0 ? "rgba(56,189,248,0.2)" : "rgba(52,211,153,0.2)"}`, padding: "12px", borderRadius: "14px" }}>
+                  <strong>{expiringSoon > 0 ? "📋 Fin de Contrats" : "✅ Contrats OK"}</strong>
                   <p style={{ margin: "4px 0 0 0", color: "#cbd5e1" }}>
                     {expiringSoon > 0
                       ? `${expiringSoon} contrat(s) expirent dans moins de 30 jours.`
-                      : 'Aucun contrat n\'expire dans les 30 prochains jours.'}
+                      : "Aucun contrat n'expire dans les 30 prochains jours."}
                   </p>
                 </div>
 
                 {summary && summary.totalRevenue > summary.totalDepenses ? (
                   <div style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", padding: "12px", borderRadius: "14px" }}>
-                    <strong style={{ color: '#34d399' }}>💰 Bilan Positif</strong>
+                    <strong style={{ color: "#34d399" }}>💰 Bilan Positif</strong>
                     <p style={{ margin: "4px 0 0 0", color: "#cbd5e1" }}>
                       Solde: +{(summary.totalRevenue - summary.totalDepenses).toLocaleString()} GNF
                     </p>
                   </div>
                 ) : summary ? (
                   <div style={{ background: "rgba(248,113,113,0.08)", border: "1px solid rgba(248,113,113,0.2)", padding: "12px", borderRadius: "14px" }}>
-                    <strong style={{ color: '#f87171' }}>📉 Deficit</strong>
+                    <strong style={{ color: "#f87171" }}>📉 Deficit</strong>
                     <p style={{ margin: "4px 0 0 0", color: "#cbd5e1" }}>
                       Solde: {(summary.totalRevenue - summary.totalDepenses).toLocaleString()} GNF
                     </p>
@@ -325,74 +330,52 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* Tables d'informations */}
       <section className="grid-2">
-        {/* Contrats recents */}
         <div className="panel">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
             <h2 style={{ margin: 0, fontSize: "1.2rem" }}>Contrats recents</h2>
             <Link href="/contrats" style={{ fontSize: "0.85rem", color: "#38bdf8" }}>Voir tout ➜</Link>
           </div>
           <table className="table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Client</th>
-                <th>Debut</th>
-                <th>Fin</th>
-                <th>Montant</th>
-              </tr>
-            </thead>
+            <thead><tr><th>ID</th><th>Client</th><th>Debut</th><th>Fin</th><th>Montant</th></tr></thead>
             <tbody>
               {loading ? (
                 <tr><td colSpan={5}>Chargement...</td></tr>
               ) : latestContracts.length === 0 ? (
                 <tr><td colSpan={5}>Aucun contrat recent.</td></tr>
-              ) : (
-                latestContracts.map(contract => (
-                  <tr key={contract.id_contrat}>
-                    <td style={{ color: '#64748b' }}>#{contract.id_contrat}</td>
-                    <td><strong>{contract.client?.nom} {contract.client?.prenom}</strong></td>
-                    <td>{formatDate(contract.date_debut)}</td>
-                    <td>{contract.date_fin ? formatDate(contract.date_fin) : <span style={{ color: '#34d399' }}>En cours</span>}</td>
-                    <td>{contract.montant.toLocaleString()} <span style={{ fontSize: '0.78rem', color: '#64748b' }}>GNF</span></td>
-                  </tr>
-                ))
-              )}
+              ) : latestContracts.map(c => (
+                <tr key={c.id_contrat}>
+                  <td style={{ color: "#64748b" }}>#{c.id_contrat}</td>
+                  <td><strong>{c.client?.nom} {c.client?.prenom}</strong></td>
+                  <td>{formatDate(c.date_debut)}</td>
+                  <td>{c.date_fin ? formatDate(c.date_fin) : <span style={{ color: "#34d399" }}>En cours</span>}</td>
+                  <td>{c.montant.toLocaleString()} <span style={{ fontSize: "0.78rem", color: "#64748b" }}>GNF</span></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
 
-        {/* Paiements recents */}
         <div className="panel">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
             <h2 style={{ margin: 0, fontSize: "1.2rem" }}>Paiements recents</h2>
             <Link href="/paiements" style={{ fontSize: "0.85rem", color: "#38bdf8" }}>Voir tout ➜</Link>
           </div>
           <table className="table">
-            <thead>
-              <tr>
-                <th>Client</th>
-                <th>Mois</th>
-                <th>Montant</th>
-                <th>Date</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Client</th><th>Mois</th><th>Montant</th><th>Date</th></tr></thead>
             <tbody>
               {loading ? (
                 <tr><td colSpan={4}>Chargement...</td></tr>
               ) : latestPayments.length === 0 ? (
                 <tr><td colSpan={4}>Aucun paiement recent.</td></tr>
-              ) : (
-                latestPayments.map(payment => (
-                  <tr key={payment.id_paiement}>
-                    <td><strong>{payment.client?.nom} {payment.client?.prenom}</strong></td>
-                    <td>{payment.mois_paye}</td>
-                    <td><strong style={{ color: '#34d399' }}>{payment.montant.toLocaleString()}</strong> <span style={{ fontSize: '0.78rem', color: '#64748b' }}>GNF</span></td>
-                    <td style={{ fontSize: '0.85rem', color: '#64748b' }}>{formatDate(payment.date_paiement)}</td>
-                  </tr>
-                ))
-              )}
+              ) : latestPayments.map(p => (
+                <tr key={p.id_paiement}>
+                  <td><strong>{p.client?.nom} {p.client?.prenom}</strong></td>
+                  <td>{p.mois_paye}</td>
+                  <td><strong style={{ color: "#34d399" }}>{p.montant.toLocaleString()}</strong> <span style={{ fontSize: "0.78rem", color: "#64748b" }}>GNF</span></td>
+                  <td style={{ fontSize: "0.85rem", color: "#64748b" }}>{formatDate(p.date_paiement)}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

@@ -72,7 +72,7 @@ export async function POST(req: Request) {
       }
     });
 
-    return NextResponse.json({ success: true, client, contrat });
+    return NextResponse.json({ success: true, client, contrat, paiement: { numero_recu, montant: parseFloat(montant), mois_paye, date_paiement: new Date() } });
   } catch (error: any) {
     return NextResponse.json({ error: "Erreur lors de la réservation: " + error.message }, { status: 500 });
   }

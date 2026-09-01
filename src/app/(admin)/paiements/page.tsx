@@ -1,8 +1,11 @@
 "use client";
 import { useEffect, useState } from "react";
 
+const ITEMS_PAR_PAGE = 10;
+
 type Paiement = {
   id_paiement: number;
+  id_client: number;
   client: { nom: string; prenom: string } | null;
   date_paiement: string;
   mois_paye: string;
@@ -20,7 +23,10 @@ export default function PaiementsPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [form, setForm] = useState({ id_client: '', mois_paye: '', montant: 0 });
-  const [filterMois, setFilterMois] = useState(""); // "" = all months
+  const [editing, setEditing] = useState<Paiement | null>(null);
+  const [filterAnnee, setFilterAnnee] = useState("");
+  const [filterMois, setFilterMois] = useState("");
+  const [page, setPage] = useState(1);
 
   async function load() {
     setLoading(true);
@@ -43,13 +49,33 @@ export default function PaiementsPage() {
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     try {
-      await fetch('/api/paiements', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id_client: Number(form.id_client), mois_paye: form.mois_paye, montant: form.montant }) });
+      if (editing) {
+        await fetch(`/api/paiements/${editing.id_paiement}`, {
+          method: 'PUT',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ id_client: Number(form.id_client), mois_paye: form.mois_paye, montant: form.montant }),
+        });
+        setEditing(null);
+      } else {
+        await fetch('/api/paiements', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id_client: Number(form.id_client), mois_paye: form.mois_paye, montant: form.montant }) });
+      }
       setForm({ id_client: '', mois_paye: '', montant: 0 });
       load();
       setError(null);
     } catch {
-      setError('Impossible de créer le paiement.');
+      setError(editing ? 'Impossible de modifier le paiement.' : 'Impossible de créer le paiement.');
     }
+  }
+
+  function handleEdit(p: Paiement) {
+    setEditing(p);
+    setForm({ id_client: String(p.id_client), mois_paye: p.mois_paye, montant: p.montant });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function resetForm() {
+    setEditing(null);
+    setForm({ id_client: '', mois_paye: '', montant: 0 });
   }
 
   async function handleDelete(id: number) {
@@ -62,19 +88,26 @@ export default function PaiementsPage() {
     }
   }
 
-  // Get unique months for filter dropdown
-  const allMois = Array.from(new Set(paiements.map(p => p.mois_paye))).sort().reverse();
+  // Années et mois uniques extraits des dates réelles de paiement
+  const allAnnees = Array.from(new Set(paiements.map((p) => new Date(p.date_paiement).getFullYear().toString()))).sort().reverse();
+  const MOIS_LABELS = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
 
-  const filtered = paiements.filter(p => {
-    const matchSearch = !search || 
+  useEffect(() => { setPage(1); }, [search, filterMois, filterAnnee]);
+
+  const filtered = paiements.filter((p) => {
+    const d = new Date(p.date_paiement);
+    const matchSearch = !search ||
       `${p.client?.nom} ${p.client?.prenom}`.toLowerCase().includes(search.toLowerCase()) ||
       p.mois_paye.toLowerCase().includes(search.toLowerCase()) ||
       (p.numero_recu || '').toLowerCase().includes(search.toLowerCase());
-    const matchMois = !filterMois || p.mois_paye === filterMois;
-    return matchSearch && matchMois;
+    const matchAnnee = !filterAnnee || d.getFullYear().toString() === filterAnnee;
+    const matchMois = !filterMois || d.getMonth().toString() === filterMois;
+    return matchSearch && matchAnnee && matchMois;
   });
 
   const totalEncaisse = filtered.reduce((s, p) => s + p.montant, 0);
+  const totalPages = Math.ceil(filtered.length / ITEMS_PAR_PAGE);
+  const pagedFiltered = filtered.slice((page - 1) * ITEMS_PAR_PAGE, page * ITEMS_PAR_PAGE);
 
   function printReceipt(p: Paiement) {
     const printWindow = window.open("", "_blank");
@@ -203,28 +236,27 @@ export default function PaiementsPage() {
 
       <section className="panel panel-highlight" style={{ display: 'flex', gap: '20px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', flexWrap: 'wrap' }}>
         <div>
-          <h2>Filtrer par mois</h2>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '0.85rem' }}>Ciblez un mois précis pour consulter ses paiements.</p>
+          <h2>Filtrer les paiements</h2>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '0.85rem' }}>Filtrez par année et/ou mois de paiement.</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <select
-            className="select"
-            style={{ maxWidth: '200px' }}
-            value={filterMois}
-            onChange={e => setFilterMois(e.target.value)}
-          >
-            <option value="">📅 Tous les mois</option>
-            {allMois.map(m => <option key={m} value={m}>{m}</option>)}
+          <select className="select" style={{ maxWidth: '140px' }} value={filterAnnee} onChange={e => setFilterAnnee(e.target.value)}>
+            <option value="">📅 Toutes années</option>
+            {allAnnees.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
-          {filterMois && (
-            <button className="btn btn-secondary" onClick={() => setFilterMois("")} style={{ padding: '8px 14px', fontSize: '0.85rem' }}>✕ Effacer</button>
+          <select className="select" style={{ maxWidth: '160px' }} value={filterMois} onChange={e => setFilterMois(e.target.value)}>
+            <option value="">🗓️ Tous les mois</option>
+            {MOIS_LABELS.map((m, i) => <option key={i} value={i.toString()}>{m}</option>)}
+          </select>
+          {(filterAnnee || filterMois) && (
+            <button className="btn btn-secondary" onClick={() => { setFilterAnnee(""); setFilterMois(""); }} style={{ padding: '8px 14px', fontSize: '0.85rem' }}>✕ Effacer</button>
           )}
         </div>
       </section>
 
       <section className="grid-2">
         <div className="panel">
-          <h2>💳 Enregistrer un paiement</h2>
+          <h2>{editing ? '✏️ Modifier le paiement' : '💳 Enregistrer un paiement'}</h2>
           <form id="payment-form" className="form-grid" onSubmit={save}>
             <div className="form-field">
               <label>Locataire</label>
@@ -241,7 +273,10 @@ export default function PaiementsPage() {
               <label>Montant (GNF)</label>
               <input className="input" type="number" min="0" value={form.montant} onChange={e => setForm({ ...form, montant: Number(e.target.value) })} required />
             </div>
-            <button className="btn btn-primary" type="submit">✅ Enregistrer le paiement</button>
+            <div className="button-group">
+              <button className="btn btn-primary" type="submit">{editing ? '💾 Enregistrer les modifications' : '✅ Enregistrer le paiement'}</button>
+              {editing && <button className="btn btn-secondary" type="button" onClick={resetForm}>Annuler</button>}
+            </div>
             {error && <p className="status-pill status-warning">{error}</p>}
           </form>
 
@@ -280,7 +315,7 @@ export default function PaiementsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(payment => (
+                {pagedFiltered.map(payment => (
                   <tr key={payment.id_paiement}>
                     <td><strong>{payment.client?.nom} {payment.client?.prenom}</strong></td>
                     <td>{payment.mois_paye}</td>
@@ -289,6 +324,7 @@ export default function PaiementsPage() {
                     <td>
                       <div className="actions">
                         <button className="btn btn-sm btn-secondary" onClick={() => printReceipt(payment)} title="Imprimer le reçu">🧾 Reçu</button>
+                        <button className="btn btn-sm btn-secondary" onClick={() => handleEdit(payment)} title="Modifier">✏️</button>
                         <button className="btn btn-sm btn-danger" onClick={() => handleDelete(payment.id_paiement)} title="Supprimer">🗑️</button>
                       </div>
                     </td>
@@ -296,6 +332,17 @@ export default function PaiementsPage() {
                 ))}
               </tbody>
             </table>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginTop: "20px" }}>
+              <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page === 1} style={{ opacity: page === 1 ? 0.4 : 1 }}>←</button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
+                <button key={p} className={`btn btn-sm ${p === page ? "btn-primary" : "btn-secondary"}`} onClick={() => setPage(p)}>{p}</button>
+              ))}
+              <button className="btn btn-secondary btn-sm" onClick={() => setPage((p) => Math.min(totalPages, p + 1))} disabled={page === totalPages} style={{ opacity: page === totalPages ? 0.4 : 1 }}>→</button>
+            </div>
           )}
         </div>
       </section>

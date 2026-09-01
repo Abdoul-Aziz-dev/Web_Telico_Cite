@@ -78,7 +78,7 @@ export default function ContratsPage() {
       });
       load();
       setError(null);
-    } catch (e: any) {
+    } catch {
       setError('Impossible de résilier le contrat.');
     }
   }
@@ -175,21 +175,24 @@ export default function ContratsPage() {
           </div>
 
           <div class="section">
-            <h2 class="section-title">4. Règles Générales & Règlements Intérieurs</h2>
+            <h2 class="section-title">4. Règlement Intérieur & Obligations du Locataire</h2>
             <div class="rules">
-              <p>1. Le locataire s'engage à maintenir les locaux loués dans un parfait état de propreté et à ne faire aucun changement de structure.</p>
-              <p>2. Les nuisances sonores sont interdites afin de garantir la tranquillité de la Cité.</p>
+              <p><strong>Article 1 — Paiement des Loyers :</strong> Le loyer est réductible et payable d'avance le 1er de chaque mois et au plus tard le 5 du mois en cours. Tout retard non justifié pourra entraîner l'application de pénalités de retard et/ou la résiliation du bail.</p>
+              <p><strong>Article 2 — Usage des Lieux & Entretien :</strong> Les lieux loués doivent être maintenus dans un état de propreté irréprochable. Toute dégradation causée par le locataire sera réparée à ses frais exclusifs.</p>
+              <p><strong>Article 3 — Nuisances & Sérénité :</strong> Les fêtes bruyantes, l'usage d'appareils sonores à fort volume après 22h et tout comportement troublant la tranquillité des résidents sont formellement interdits.</p>
+              <p><strong>Article 4 — Sous-location :</strong> La sous-location partielle ou totale du logement est strictement interdite sans l'accord écrit de la Direction.</p>
+              <p><strong>Article 5 — Clause Résolutoire :</strong> En cas de bêtises exagérées, dégradations volontaires, non-respect répété du règlement ou retard supérieur à 30 jours, le présent contrat sera résilié de plein droit après mise en demeure.</p>
             </div>
           </div>
 
           <div class="signatures">
             <div class="signature-box">
-              Le Bailleur (Gérant Cité Telico)<br>
-              (Signature précédée de la mention "Lu et approuvé")
+              Le Bailleur (Direction Cité Telico)<br>
+              <em>(Signature & Cachet)</em>
             </div>
             <div class="signature-box">
-              Le Preneur (Locataire)<br>
-              (Signature précédée de la mention "Lu et approuvé")
+              Le Preneur (Locataire : M./Mme ${ct.client?.nom})<br>
+              <em>("Lu et approuvé, je m'engage à respecter le règlement")</em>
             </div>
           </div>
         </body>

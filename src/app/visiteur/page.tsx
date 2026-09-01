@@ -10,6 +10,7 @@ type Chambre = {
   type_chambre: string;
   prix: number;
   statut: string;
+  photo?: string | null;
 };
 
 type ReservationInfo = {
@@ -22,8 +23,17 @@ type ReservationInfo = {
   date_entree: string;
   statut: string;
   chambre?: Chambre | null;
-  contrats?: any[];
-  paiements?: any[];
+  contrats?: { id_contrat: number; montant: number; date_debut: string }[];
+  paiements?: { id_paiement: number; mois_paye: string; montant: number; numero_recu?: string | null; date_paiement: string }[];
+};
+
+type RecuInfo = {
+  numero_recu: string;
+  montant: number;
+  mois_paye: string;
+  date_paiement: string;
+  chambre_numero: string;
+  chambre_type: string;
 };
 
 export default function VisitorPage() {
@@ -39,6 +49,7 @@ export default function VisitorPage() {
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [recu, setRecu] = useState<RecuInfo | null>(null);
 
   async function loadData(currentUser: any) {
     try {
@@ -139,22 +150,89 @@ export default function VisitorPage() {
         throw new Error(data.error || "Une erreur est survenue lors de la réservation.");
       }
 
-      setSuccessMsg(`Félicitations! Vous avez réservé la Chambre N° ${selectedChambre.numero}.`);
+      setRecu({
+        numero_recu: data.paiement.numero_recu,
+        montant: data.paiement.montant,
+        mois_paye: data.paiement.mois_paye,
+        date_paiement: new Date().toISOString(),
+        chambre_numero: selectedChambre.numero,
+        chambre_type: selectedChambre.type_chambre,
+      });
       setSelectedChambre(null);
       setForm({ sexe: "M", telephone: "", profession: "", mois_paye: "" });
-      
-      // Reload lists
       await loadData(user);
-      
-      setTimeout(() => {
-        setSuccessMsg(null);
-      }, 5000);
 
     } catch (err: any) {
       setBookingError(err.message);
     } finally {
       setBookingLoading(false);
     }
+  }
+
+  function printRecu(r: RecuInfo) {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>Reçu de Réservation - Cité Telico</title>
+      <style>
+        body{font-family:Arial,sans-serif;color:#1e293b;padding:50px;max-width:580px;margin:auto}
+        .header{text-align:center;border-bottom:2px solid #0f172a;padding-bottom:20px;margin-bottom:30px}
+        h1{font-size:1.8rem;margin:0}h2{font-size:1rem;color:#64748b;margin:5px 0 0}
+        .badge{display:inline-block;background:#f0fdf4;color:#15803d;border:1px solid #86efac;padding:6px 18px;border-radius:99px;font-weight:700;margin-top:14px;font-size:0.95rem}
+        .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:0.92rem}
+        .label{color:#64748b}.value{font-weight:600}
+        .amount{text-align:center;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:24px;margin:24px 0}
+        .amount-val{font-size:2rem;font-weight:900;color:#0f172a}
+        .footer{text-align:center;color:#94a3b8;font-size:0.78rem;margin-top:40px;border-top:1px solid #e2e8f0;padding-top:16px}
+      </style></head>
+      <body onload="window.print();window.close()">
+        <div class="header">
+          <h1>CITÉ TELICO</h1>
+          <h2>Conakry, Guinée — Gestion Immobilière</h2>
+          <div class="badge">✅ RÉSERVATION CONFIRMÉE</div>
+        </div>
+        <div class="row"><span class="label">N° de reçu</span><span class="value" style="font-family:monospace">${r.numero_recu}</span></div>
+        <div class="row"><span class="label">Locataire</span><span class="value">${user.prenom} ${user.nom}</span></div>
+        <div class="row"><span class="label">Chambre réservée</span><span class="value">N° ${r.chambre_numero} — ${r.chambre_type}</span></div>
+        <div class="row"><span class="label">Mois de bail</span><span class="value">${r.mois_paye}</span></div>
+        <div class="row"><span class="label">Date de réservation</span><span class="value">${new Date(r.date_paiement).toLocaleDateString("fr-FR")}</span></div>
+        <div class="amount">
+          <div style="color:#64748b;font-size:0.88rem;margin-bottom:8px">Montant encaissé</div>
+          <div class="amount-val">${r.montant.toLocaleString()} GNF</div>
+        </div>
+        <div class="footer">Cité Telico &copy; ${new Date().getFullYear()} — Merci de votre confiance</div>
+      </body></html>
+    `);
+    win.document.close();
+  }
+
+  function printRecuPaiement(p: { numero_recu?: string | null; montant: number; mois_paye: string; date_paiement: string }, chambreNum: string) {
+    const win = window.open("", "_blank");
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>Reçu - Cité Telico</title>
+      <style>
+        body{font-family:Arial,sans-serif;color:#1e293b;padding:50px;max-width:580px;margin:auto}
+        .header{text-align:center;border-bottom:2px solid #0f172a;padding-bottom:20px;margin-bottom:30px}
+        h1{font-size:1.8rem;margin:0}.badge{display:inline-block;background:#f0fdf4;color:#15803d;border:1px solid #86efac;padding:6px 18px;border-radius:99px;font-weight:700;margin-top:14px}
+        .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #f1f5f9;font-size:0.92rem}
+        .label{color:#64748b}.value{font-weight:600}
+        .amount{text-align:center;background:#f8fafc;border:2px solid #e2e8f0;border-radius:12px;padding:24px;margin:24px 0}
+        .amount-val{font-size:2rem;font-weight:900}
+        .footer{text-align:center;color:#94a3b8;font-size:0.78rem;margin-top:40px;border-top:1px solid #e2e8f0;padding-top:16px}
+      </style></head>
+      <body onload="window.print();window.close()">
+        <div class="header"><h1>CITÉ TELICO</h1><div class="badge">✅ PAIEMENT CONFIRMÉ</div></div>
+        <div class="row"><span class="label">N° reçu</span><span class="value" style="font-family:monospace">${p.numero_recu || "—"}</span></div>
+        <div class="row"><span class="label">Locataire</span><span class="value">${user.prenom} ${user.nom}</span></div>
+        <div class="row"><span class="label">Chambre</span><span class="value">N° ${chambreNum}</span></div>
+        <div class="row"><span class="label">Mois payé</span><span class="value">${p.mois_paye}</span></div>
+        <div class="row"><span class="label">Date</span><span class="value">${new Date(p.date_paiement).toLocaleDateString("fr-FR")}</span></div>
+        <div class="amount"><div style="color:#64748b;font-size:0.88rem;margin-bottom:8px">Montant</div><div class="amount-val">${p.montant.toLocaleString()} GNF</div></div>
+        <div class="footer">Cité Telico &copy; ${new Date().getFullYear()}</div>
+      </body></html>
+    `);
+    win.document.close();
   }
 
   const getEmojiForType = (type: string) => {
@@ -226,6 +304,35 @@ export default function VisitorPage() {
           </div>
         )}
 
+        {/* Modal Reçu de réservation */}
+        {recu && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: "20px" }}>
+            <div className="panel" style={{ maxWidth: "500px", width: "100%", padding: "36px", textAlign: "center" }}>
+              <div style={{ fontSize: "3rem", marginBottom: "12px" }}>🎉</div>
+              <h2 style={{ margin: "0 0 6px", fontSize: "1.4rem" }}>Réservation confirmée !</h2>
+              <p style={{ color: "#94a3b8", marginBottom: "24px" }}>Chambre N° {recu.chambre_numero} — {recu.chambre_type}</p>
+              <div style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)", borderRadius: "16px", padding: "20px", marginBottom: "24px", textAlign: "left" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: "0.9rem" }}>
+                  <span style={{ color: "#94a3b8" }}>N° de reçu</span>
+                  <span style={{ fontFamily: "monospace", color: "#38bdf8" }}>{recu.numero_recu}</span>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(255,255,255,0.05)", fontSize: "0.9rem" }}>
+                  <span style={{ color: "#94a3b8" }}>Mois de bail</span>
+                  <strong>{recu.mois_paye}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", fontSize: "0.9rem" }}>
+                  <span style={{ color: "#94a3b8" }}>Montant encaissé</span>
+                  <strong style={{ color: "#34d399" }}>{recu.montant.toLocaleString()} GNF</strong>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
+                <button className="btn btn-primary" onClick={() => printRecu(recu)}>🖨️ Imprimer le reçu</button>
+                <button className="btn btn-secondary" onClick={() => setRecu(null)}>Fermer</button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Action Header */}
         <div style={{ marginBottom: "50px", textAlign: "center" }}>
           <h1 className="public-hero-title" style={{ fontSize: "2.8rem", marginBottom: "12px" }}>
@@ -250,7 +357,9 @@ export default function VisitorPage() {
               {chambres.map((chambre) => (
                 <article key={chambre.id_chambre} className="room-card">
                   <div className="room-image-placeholder">
-                    {getEmojiForType(chambre.type_chambre)}
+                    {chambre.photo
+                      ? <img src={chambre.photo} alt={`Chambre ${chambre.numero}`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      : getEmojiForType(chambre.type_chambre)}
                     <span className="room-tag">{chambre.type_chambre}</span>
                   </div>
                   <div className="room-card-content">
@@ -293,8 +402,8 @@ export default function VisitorPage() {
                     <th>N° Chambre</th>
                     <th>Date d'entrée</th>
                     <th>Loyer contractuel</th>
-                    <th>Date de Réservation</th>
                     <th>Statut occupation</th>
+                    <th>Reçus</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -303,11 +412,25 @@ export default function VisitorPage() {
                       <td><strong>{resv.chambre?.numero || "N/A"}</strong></td>
                       <td>{new Date(resv.date_entree).toLocaleDateString("fr-FR")}</td>
                       <td><strong>{(resv.chambre?.prix || 0).toLocaleString()}</strong> GNF / mois</td>
-                      <td>{new Date(resv.date_entree).toLocaleDateString("fr-FR")}</td>
                       <td>
                         <span className={`status-pill ${resv.statut === "Actif" ? "status-complete" : "status-muted"}`}>
                           {resv.statut === "Actif" ? "Actuelle (Occupée)" : "Libérée (Historique)"}
                         </span>
+                      </td>
+                      <td>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          {(resv.paiements || []).map((p) => (
+                            <button
+                              key={p.id_paiement}
+                              className="btn btn-sm btn-secondary"
+                              onClick={() => printRecuPaiement(p, resv.chambre?.numero || "?")}
+                              style={{ fontSize: "0.78rem", whiteSpace: "nowrap" }}
+                            >
+                              🧾 {p.mois_paye}
+                            </button>
+                          ))}
+                          {!(resv.paiements || []).length && <span style={{ color: "#475569", fontSize: "0.82rem" }}>—</span>}
+                        </div>
                       </td>
                     </tr>
                   ))}

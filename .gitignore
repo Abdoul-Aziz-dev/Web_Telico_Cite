@@ -11,3 +11,4 @@ coverage/
 *.local
 *.db
 prisma/dev.db
+.env

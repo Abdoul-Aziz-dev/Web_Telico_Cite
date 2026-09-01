@@ -24,6 +24,7 @@ model Chambre {
   type_chambre    String
   prix            Float
   statut          String  @default("Libre")
+  photo           String?
   contrat_chambres ContratChambre[]
   clients         Client[]
 }
@@ -118,13 +119,51 @@ model Cloture {
 
 model AuditLog {
   id_audit    Int      @id @default(autoincrement())
-  date_action DateTime
+  date_action DateTime @default(now())
   utilisateur String?
+  id_user     Int?
   action      String
-  details     String?
+  details     String?  @db.Text
+  ip          String?
+}
+
+model ConnexionLog {
+  id_connexion Int      @id @default(autoincrement())
+  id_user      Int
+  login        String
+  nom          String
+  prenom       String
+  role         String
+  date_connexion DateTime @default(now())
+  ip           String?
+  action       String   @default("connexion")
+
+  @@map("connexion_logs")
+}
+
+model RelanceLoyer {
+  id_relance    Int      @id @default(autoincrement())
+  id_client     Int
+  mois          String
+  date_relance  DateTime @default(now())
+  note          String?
+
+  @@map("relances_loyer")
 }
 
 model AppConfig {
   cle    String   @id
   valeur String?
+}
+
+model DemandeContact {
+  id_demande   Int      @id @default(autoincrement())
+  nom          String
+  email        String
+  type_chambre String
+  message      String   @db.Text
+  date_demande DateTime @default(now())
+  traitee      Boolean  @default(false)
+
+  @@map("demandes_contact")
 }

@@ -8,7 +8,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ nom: string; prenom: string; role: string } | null>(null);
 
   useEffect(() => {
     async function checkAuth() {
@@ -37,15 +37,38 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }
 
-  const menuItems = [
-    { href: "/dashboard", label: "Tableau de bord", icon: "🏠" },
-    { href: "/clients", label: "Locataires", icon: "👥" },
-    { href: "/chambres", label: "Chambres", icon: "🛏️" },
-    { href: "/contrats", label: "Contrats", icon: "📝" },
-    { href: "/paiements", label: "Paiements", icon: "💳" },
-    { href: "/depenses", label: "Dépenses", icon: "📉" },
-    { href: "/clotures", label: "Clôtures", icon: "📊" },
+  const menuGroups = [
+    {
+      label: "Gestion",
+      items: [
+        { href: "/dashboard", label: "Tableau de bord", icon: "🏠" },
+        { href: "/clients", label: "Locataires", icon: "👥" },
+        { href: "/chambres", label: "Chambres", icon: "🛏️" },
+        { href: "/contrats", label: "Contrats", icon: "📝" },
+        { href: "/retards", label: "Loyers en retard", icon: "⚠️" },
+      ],
+    },
+    {
+      label: "Finance",
+      items: [
+        { href: "/paiements", label: "Paiements", icon: "💳" },
+        { href: "/depenses", label: "Dépenses", icon: "📉" },
+        { href: "/clotures", label: "Clôtures", icon: "📊" },
+      ],
+    },
+    {
+      label: "Administration",
+      items: [
+        { href: "/contacts", label: "Demandes Contact", icon: "📬" },
+        { href: "/utilisateurs", label: "Utilisateurs", icon: "👤" },
+        { href: "/audit", label: "Journal Audit", icon: "🔍" },
+        { href: "/recherche", label: "Recherche globale", icon: "🔎" },
+        { href: "/assistant", label: "Assistant IA", icon: "🤖" },
+        { href: "/parametres", label: "Paramètres", icon: "⚙️" },
+      ],
+    },
   ];
+  const menuItems = menuGroups.flatMap(g => g.items);
 
   if (loading) {
     return (
@@ -90,19 +113,22 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </div>
 
         <nav className="sidebar-nav">
-          {menuItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={`sidebar-link ${isActive ? "active" : ""}`}
-              >
-                <span className="sidebar-link-icon">{item.icon}</span>
-                <span className="sidebar-link-label">{item.label}</span>
-              </Link>
-            );
-          })}
+          {menuGroups.map(group => (
+            <div key={group.label}>
+              <div style={{ fontSize: "0.68rem", fontWeight: 700, color: "#334155", textTransform: "uppercase", letterSpacing: "0.1em", padding: "14px 18px 6px" }}>
+                {group.label}
+              </div>
+              {group.items.map(item => {
+                const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                return (
+                  <Link key={item.href} href={item.href} className={`sidebar-link ${isActive ? "active" : ""}`}>
+                    <span className="sidebar-link-icon">{item.icon}</span>
+                    <span className="sidebar-link-label">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="sidebar-footer" style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
