@@ -9,6 +9,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ nom: string; prenom: string; role: string } | null>(null);
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("site_theme") as "dark" | "light" | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("site_theme", newTheme);
+  };
 
   useEffect(() => {
     async function checkAuth() {
@@ -99,21 +113,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
     );
   }
-
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("site_theme") as "dark" | "light" | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    localStorage.setItem("site_theme", newTheme);
-  };
 
   return (
     <div className={`admin-shell ${theme === "light" ? "light-mode" : ""}`}>
