@@ -6,7 +6,7 @@ const ITEMS_PAR_PAGE = 10;
 type Paiement = {
   id_paiement: number;
   id_client: number;
-  client: { nom: string; prenom: string } | null;
+  client: { nom: string; prenom: string; telephone?: string | null } | null;
   date_paiement: string;
   mois_paye: string;
   montant: number;
@@ -14,7 +14,7 @@ type Paiement = {
   numero_recu?: string;
 };
 
-type Client = { id_client: number; nom: string; prenom: string };
+type Client = { id_client: number; nom: string; prenom: string; telephone?: string | null };
 
 export default function PaiementsPage() {
   const [paiements, setPaiements] = useState<Paiement[]>([]);
@@ -49,6 +49,7 @@ export default function PaiementsPage() {
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     try {
+      let createdPaiement: Paiement | null = null;
       if (editing) {
         await fetch(`/api/paiements/${editing.id_paiement}`, {
           method: 'PUT',
@@ -57,11 +58,32 @@ export default function PaiementsPage() {
         });
         setEditing(null);
       } else {
-        await fetch('/api/paiements', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id_client: Number(form.id_client), mois_paye: form.mois_paye, montant: form.montant }) });
+        const res = await fetch('/api/paiements', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id_client: Number(form.id_client), mois_paye: form.mois_paye, montant: form.montant }) });
+        const data = await res.json();
+        createdPaiement = data.paiement;
       }
+      
+      const clientObj = clients.find(c => c.id_client === Number(form.id_client));
+
       setForm({ id_client: '', mois_paye: '', montant: 0 });
       load();
       setError(null);
+
+      // Impression automatique du reçu et option WhatsApp
+      if (createdPaiement && clientObj) {
+        const pWithClient = { ...createdPaiement, client: clientObj };
+        printReceipt(pWithClient);
+
+        // Si le téléphone du client est renseigné, rediriger vers WhatsApp après l'impression
+        if (clientObj.telephone) {
+          const cleanPhone = clientObj.telephone.replace(/[^0-9]/g, "");
+          const msg = `Bonjour ${clientObj.prenom} ${clientObj.nom},\nNous accusons réception de votre règlement de ${createdPaiement.montant.toLocaleString()} GNF pour le mois de ${createdPaiement.mois_paye} (Reçu N° ${createdPaiement.numero_recu}).\nMerci pour votre fidélité à la Cité Telico !`;
+          const waUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
+          setTimeout(() => {
+            window.open(waUrl, "_blank");
+          }, 1500);
+        }
+      }
     } catch {
       setError(editing ? 'Impossible de modifier le paiement.' : 'Impossible de créer le paiement.');
     }
@@ -324,6 +346,18 @@ export default function PaiementsPage() {
                     <td>
                       <div className="actions">
                         <button className="btn btn-sm btn-secondary" onClick={() => printReceipt(payment)} title="Imprimer le reçu">🧾 Reçu</button>
+                        {payment.client?.telephone && (
+                          <a
+                            href={`https://wa.me/${payment.client.telephone.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(`Bonjour ${payment.client.prenom} ${payment.client.nom},\nVoici la confirmation de votre paiement de ${payment.montant.toLocaleString()} GNF pour le mois de ${payment.mois_paye} (Reçu N° ${payment.numero_recu || 'N/A'}).\nMerci pour votre confiance !`)}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-sm btn-secondary"
+                            style={{ background: "rgba(37,211,102,0.15)", color: "#25D366", border: "1px solid rgba(37,211,102,0.3)" }}
+                            title="Envoyer reçu via WhatsApp"
+                          >
+                            💬
+                          </a>
+                        )}
                         <button className="btn btn-sm btn-secondary" onClick={() => handleEdit(payment)} title="Modifier">✏️</button>
                         <button className="btn btn-sm btn-danger" onClick={() => handleDelete(payment.id_paiement)} title="Supprimer">🗑️</button>
                       </div>

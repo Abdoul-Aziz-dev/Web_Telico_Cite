@@ -100,8 +100,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("site_theme") as "dark" | "light" | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("site_theme", newTheme);
+  };
+
   return (
-    <div className="admin-shell">
+    <div className={`admin-shell ${theme === "light" ? "light-mode" : ""}`}>
       {/* Sidebar de navigation */}
       <aside className="admin-sidebar">
         <div className="brand">
@@ -147,7 +162,24 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           <div className="admin-breadcrumb">
             Gestion immobilière &gt; {menuItems.find((item) => item.href === pathname)?.label || "Administration"}
           </div>
-          <div className="admin-profile">
+          <div className="admin-profile" style={{ gap: "16px" }}>
+            <button
+              onClick={toggleTheme}
+              className="btn btn-secondary"
+              style={{
+                padding: "6px 14px",
+                borderRadius: "20px",
+                fontSize: "0.85rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                background: theme === "light" ? "rgba(0, 0, 0, 0.05)" : "rgba(255, 255, 255, 0.08)",
+                border: "1px solid rgba(255, 255, 255, 0.15)",
+              }}
+              title={theme === "dark" ? "Passer au Mode Clair" : "Passer au Mode Sombre"}
+            >
+              {theme === "dark" ? "🌙 Sombre" : "☀️ Clair"}
+            </button>
             <span className="profile-role">{user ? `${user.prenom} ${user.nom}` : "Gérant Connecté"}</span>
             <div className="profile-avatar">👤</div>
           </div>

@@ -797,11 +797,175 @@ button:hover,
   color: #64748b;
 }
 
-.footer-nav {
-  display: flex;
-  justify-content: center;
-  gap: 30px;
-  margin-bottom: 30px;
+/* --- Light Mode (Mode Clair) pour la page d'accueil --- */
+.public-site.light-mode {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.public-site.light-mode .public-navbar {
+  background: rgba(255, 255, 255, 0.95);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.public-site.light-mode .public-logo {
+  color: #0f172a;
+}
+
+.public-site.light-mode .public-nav-link {
+  color: #475569;
+}
+
+.public-site.light-mode .public-nav-link:hover,
+.public-site.light-mode .public-nav-link.active {
+  color: #0284c7;
+}
+
+.public-site.light-mode .public-hero {
+  background: radial-gradient(circle at center, rgba(14, 165, 233, 0.12) 0%, transparent 65%);
+}
+
+.public-site.light-mode .public-hero-title {
+  background: linear-gradient(135deg, #0f172a 30%, #0284c7 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.public-site.light-mode .public-hero-subtitle {
+  color: #475569;
+}
+
+.public-site.light-mode .public-search-bar {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.08);
+}
+
+.public-site.light-mode .public-search-bar input {
+  color: #0f172a;
+}
+
+.public-site.light-mode .public-search-bar select {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+
+.public-site.light-mode .public-section-title {
+  color: #0f172a;
+}
+
+.public-site.light-mode .public-section-subtitle {
+  color: #64748b;
+}
+
+.public-site.light-mode .service-card,
+.public-site.light-mode .room-card,
+.public-site.light-mode .contact-form-container {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.public-site.light-mode .service-card p,
+.public-site.light-mode .room-card-specs,
+.public-site.light-mode .form-field label {
+  color: #475569;
+}
+
+.public-site.light-mode .input,
+.public-site.light-mode .select {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+
+/* --- Light Mode pour l'Espace d'Administration --- */
+.admin-shell.light-mode {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+.admin-shell.light-mode .admin-sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+}
+
+.admin-shell.light-mode .brand-name-large {
+  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.admin-shell.light-mode .sidebar-link {
+  color: #64748b;
+}
+
+.admin-shell.light-mode .sidebar-link:hover {
+  background: #f8fafc;
+  color: #0f172a;
+}
+
+.admin-shell.light-mode .sidebar-link.active {
+  background: rgba(14, 165, 233, 0.1);
+  color: #0284c7;
+  border-color: rgba(14, 165, 233, 0.2);
+}
+
+.admin-shell.light-mode .admin-topbar {
+  background: rgba(255, 255, 255, 0.9);
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-shell.light-mode .admin-breadcrumb,
+.admin-shell.light-mode .profile-role {
+  color: #475569;
+}
+
+.admin-shell.light-mode .hero-card,
+.admin-shell.light-mode .panel,
+.admin-shell.light-mode .metric-card,
+.admin-shell.light-mode .summary-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.04);
+}
+
+.admin-shell.light-mode .table {
+  background: #ffffff;
+}
+
+.admin-shell.light-mode .table th {
+  background: #f8fafc;
+  color: #64748b;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.admin-shell.light-mode .table tbody tr {
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-shell.light-mode .table tbody tr:hover {
+  background: rgba(14, 165, 233, 0.05);
+}
+
+.admin-shell.light-mode .input,
+.admin-shell.light-mode .select {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+
+.admin-shell.light-mode .form-field label {
+  color: #334155;
+}
+
+.admin-shell.light-mode .btn-secondary {
+  background: #f1f5f9;
+  color: #0f172a;
+  border: 1px solid #cbd5e1;
 }
 
 .footer-brand {

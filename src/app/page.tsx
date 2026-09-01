@@ -116,8 +116,23 @@ export default function PublicHome() {
   const pagedChambres = filteredChambres.slice((page - 1) * CHAMBRES_PAR_PAGE, page * CHAMBRES_PAR_PAGE);
   const currentYear = new Date().getFullYear();
 
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("site_theme") as "dark" | "light" | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("site_theme", newTheme);
+  };
+
   return (
-    <div className="public-site">
+    <div className={`public-site ${theme === "light" ? "light-mode" : ""}`}>
       {/* Navbar */}
       <header className="public-navbar">
         <div className="public-logo">
@@ -130,24 +145,44 @@ export default function PublicHome() {
           <a href="#services" className="public-nav-link">Services</a>
           <a href="#contact" className="public-nav-link">Contact</a>
         </nav>
-        {user ? (
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <Link
-              href={user.role === "gerant" ? "/dashboard" : "/visiteur"}
-              className="btn btn-secondary"
-              style={{ padding: "10px 18px", fontSize: "0.9rem" }}
-            >
-              {user.role === "gerant" ? "🔒 Espace Gestion" : "👤 Mon Espace"}
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <button
+            onClick={toggleTheme}
+            className="btn btn-secondary"
+            style={{
+              padding: "8px 14px",
+              borderRadius: "20px",
+              fontSize: "1.1rem",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: theme === "light" ? "rgba(0, 0, 0, 0.06)" : "rgba(255, 255, 255, 0.1)",
+              border: "1px solid rgba(255, 255, 255, 0.2)",
+            }}
+            title={theme === "dark" ? "Passer au Mode Clair" : "Passer au Mode Sombre"}
+          >
+            {theme === "dark" ? "🌙 Sombre" : "☀️ Clair"}
+          </button>
+          {user ? (
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <Link
+                href={user.role === "gerant" ? "/dashboard" : "/visiteur"}
+                className="btn btn-secondary"
+                style={{ padding: "10px 18px", fontSize: "0.9rem" }}
+              >
+                {user.role === "gerant" ? "🔒 Espace Gestion" : "👤 Mon Espace"}
+              </Link>
+              <button onClick={handleLogout} className="btn btn-danger" style={{ padding: "10px 18px", fontSize: "0.9rem" }}>
+                Déconnexion
+              </button>
+            </div>
+          ) : (
+            <Link href="/login" className="btn btn-primary" style={{ padding: "10px 20px" }}>
+              🔑 Connexion
             </Link>
-            <button onClick={handleLogout} className="btn btn-danger" style={{ padding: "10px 18px", fontSize: "0.9rem" }}>
-              Déconnexion
-            </button>
-          </div>
-        ) : (
-          <Link href="/login" className="btn btn-primary" style={{ padding: "10px 20px" }}>
-            🔑 Connexion
-          </Link>
-        )}
+          )}
+        </div>
       </header>
 
       {/* Hero */}
