@@ -51,6 +51,21 @@ export default function VisitorPage() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [recu, setRecu] = useState<RecuInfo | null>(null);
 
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("site_theme") as "dark" | "light" | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("site_theme", newTheme);
+  };
+
   async function loadData(currentUser: any) {
     try {
       // Load free chambers
@@ -273,21 +288,6 @@ export default function VisitorPage() {
       </div>
     );
   }
-
-  const [theme, setTheme] = useState<"dark" | "light">("dark");
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem("site_theme") as "dark" | "light" | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark";
-    setTheme(newTheme);
-    localStorage.setItem("site_theme", newTheme);
-  };
 
   return (
     <div className={`public-site ${theme === "light" ? "light-mode" : ""}`} style={{ background: theme === "light" ? "#f8fafc" : "#050b14", minHeight: "100vh" }}>
