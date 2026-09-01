@@ -274,8 +274,23 @@ export default function VisitorPage() {
     );
   }
 
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("site_theme") as "dark" | "light" | null;
+    if (savedTheme) {
+      setTheme(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newTheme = theme === "dark" ? "light" : "dark";
+    setTheme(newTheme);
+    localStorage.setItem("site_theme", newTheme);
+  };
+
   return (
-    <div className="public-site" style={{ background: "#050b14", minHeight: "100vh" }}>
+    <div className={`public-site ${theme === "light" ? "light-mode" : ""}`} style={{ background: theme === "light" ? "#f8fafc" : "#050b14", minHeight: "100vh" }}>
       {/* Header */}
       <header className="public-navbar">
         <div className="public-logo">
@@ -288,7 +303,24 @@ export default function VisitorPage() {
           <a href="#mes-locations" className="public-nav-link">Mes Réservations</a>
         </nav>
         <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
-          <span style={{ fontSize: "0.9rem", color: "#94a3b8" }}>👋 {user.prenom} {user.nom}</span>
+          <button
+            onClick={toggleTheme}
+            className="btn btn-secondary"
+            style={{
+              padding: "6px 14px",
+              borderRadius: "20px",
+              fontSize: "0.85rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: theme === "light" ? "rgba(0, 0, 0, 0.05)" : "rgba(255, 255, 255, 0.08)",
+              border: "1px solid rgba(255, 255, 255, 0.15)",
+            }}
+            title={theme === "dark" ? "Passer au Mode Clair" : "Passer au Mode Sombre"}
+          >
+            {theme === "dark" ? "🌙 Sombre" : "☀️ Clair"}
+          </button>
+          <span style={{ fontSize: "0.9rem", color: theme === "light" ? "#475569" : "#94a3b8" }}>👋 {user.prenom} {user.nom}</span>
           <button onClick={handleLogout} className="btn btn-secondary" style={{ padding: "8px 18px", fontSize: "0.85rem" }}>
             ❌ Déconnexion
           </button>
