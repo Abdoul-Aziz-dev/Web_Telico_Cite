@@ -105,9 +105,10 @@ export default function PublicHome() {
 
   const getEmojiForType = (type: string) => {
     switch (type) {
-      case "Studio": return "🏢";
-      case "Premium": return "💎";
-      case "Appartement": return "🏠";
+      case "Chambre simple": return "🛏️";
+      case "Chambre douce meublée": return "✨";
+      case "Chambre douce non meublée": return "🛋️";
+      case "Chambre salon": return "🏠";
       default: return "🛏️";
     }
   };
@@ -204,10 +205,10 @@ export default function PublicHome() {
           />
           <select value={filterType} onChange={(e) => setFilterType(e.target.value)}>
             <option value="Tous">Tous types</option>
-            <option value="Standard">Standard</option>
-            <option value="Premium">Premium</option>
-            <option value="Studio">Studio</option>
-            <option value="Appartement">Appartement</option>
+            <option value="Chambre simple">Chambre simple</option>
+            <option value="Chambre douce meublée">Chambre douce meublée</option>
+            <option value="Chambre douce non meublée">Chambre douce non meublée</option>
+            <option value="Chambre salon">Chambre salon</option>
           </select>
           <a href="#chambres" className="btn btn-primary" style={{ borderRadius: "16px", padding: "12px 24px" }}>
             Rechercher
@@ -354,10 +355,10 @@ export default function PublicHome() {
               <div className="form-field">
                 <label>Logement recherché</label>
                 <select className="select" value={contactForm.typeChambre} onChange={(e) => setContactForm({ ...contactForm, typeChambre: e.target.value })}>
-                  <option value="Standard">Chambre Standard</option>
-                  <option value="Premium">Chambre Premium</option>
-                  <option value="Studio">Studio</option>
-                  <option value="Appartement">Appartement complet</option>
+                  <option value="Chambre simple">Chambre simple</option>
+                  <option value="Chambre douce meublée">Chambre douce meublée</option>
+                  <option value="Chambre douce non meublée">Chambre douce non meublée</option>
+                  <option value="Chambre salon">Chambre salon</option>
                 </select>
               </div>
               <div className="form-field">

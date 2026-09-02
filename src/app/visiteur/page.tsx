@@ -252,9 +252,10 @@ export default function VisitorPage() {
 
   const getEmojiForType = (type: string) => {
     switch (type) {
-      case "Studio": return "🏢";
-      case "Premium": return "💎";
-      case "Appartement": return "🏠";
+      case "Chambre simple": return "🛏️";
+      case "Chambre douce meublée": return "✨";
+      case "Chambre douce non meublée": return "🛋️";
+      case "Chambre salon": return "🏠";
       default: return "🛏️";
     }
   };

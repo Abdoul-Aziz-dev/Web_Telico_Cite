@@ -163,7 +163,10 @@ export default function ChambresPage() {
             <div className="form-field">
               <label>Type de chambre</label>
               <select className="select" value={form.type_chambre} onChange={e => setForm({ ...form, type_chambre: e.target.value })}>
-                <option>Standard</option><option>Premium</option><option>Studio</option><option>Appartement</option>
+                <option value="Chambre simple">Chambre simple</option>
+                <option value="Chambre douce meublée">Chambre douce meublée</option>
+                <option value="Chambre douce non meublée">Chambre douce non meublée</option>
+                <option value="Chambre salon">Chambre salon</option>
               </select>
             </div>
             <div className="form-field">
