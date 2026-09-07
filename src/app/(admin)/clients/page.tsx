@@ -13,6 +13,8 @@ type Client = {
   profession?: string;
   date_entree: string;
   statut: string;
+  chambre?: { id_chambre?: number; numero: string; type_chambre?: string; prix?: number; statut?: string } | null;
+  _count?: { contrats: number; paiements: number };
 };
 
 type ContratDetail = {
@@ -48,6 +50,7 @@ export default function ClientsPage() {
   const [form, setForm] = useState({ nom: "", prenom: "", sexe: "M", telephone: "", profession: "", date_entree: new Date().toISOString().slice(0, 10) });
   const [dossierClient, setDossierClient] = useState<ClientDetail | null>(null);
   const [page, setPage] = useState(1);
+  const [showForm, setShowForm] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -86,12 +89,24 @@ export default function ClientsPage() {
     e.preventDefault();
     try {
       if (editing) {
-        await fetch(`/api/clients/${editing.id_client}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+        const res = await fetch(`/api/clients/${editing.id_client}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+        const data = await res.json();
+        if (data.client) {
+          setClients((prev) => prev.map((p) => (p.id_client === data.client.id_client ? data.client : p)));
+        }
       } else {
-        await fetch("/api/clients", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+        const res = await fetch("/api/clients", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+        const data = await res.json();
+        if (data?.client) {
+          setClients((prev) => {
+            if (prev.find((p) => p.id_client === data.client.id_client)) return prev;
+            return [data.client, ...prev];
+          });
+        }
       }
+
       resetForm();
-      load();
+      setShowForm(false);
       setError(null);
     } catch {
       setError(editing ? "Impossible de mettre à jour le client." : "Impossible de créer le client.");
@@ -106,14 +121,14 @@ export default function ClientsPage() {
   function handleEdit(client: Client) {
     setEditing(client);
     setForm({ nom: client.nom, prenom: client.prenom, sexe: client.sexe, telephone: client.telephone || "", profession: client.profession || "", date_entree: client.date_entree.slice(0, 10) });
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setShowForm(true);
   }
 
   async function handleDelete(id: number) {
     if (!confirm("Supprimer ce client ?")) return;
     try {
       await fetch(`/api/clients/${id}`, { method: "DELETE" });
-      load();
+      setClients((prev) => prev.filter((p) => p.id_client !== id));
       setError(null);
     } catch {
       setError("Impossible de supprimer le client.");
@@ -133,8 +148,11 @@ export default function ClientsPage() {
   async function handleDeactivate(id: number) {
     if (!confirm("Voulez-vous vraiment désactiver ce locataire et libérer sa chambre ?")) return;
     try {
-      await fetch(`/api/clients/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ statut: "Inactif" }) });
-      load();
+      const res = await fetch(`/api/clients/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ statut: "Inactif" }) });
+      const data = await res.json();
+      if (data?.client) {
+        setClients((prev) => prev.map((p) => (p.id_client === data.client.id_client ? data.client : p)));
+      }
       if (dossierClient?.id_client === id) setDossierClient(null);
     } catch {
       setError("Impossible de désactiver le locataire.");
@@ -149,8 +167,8 @@ export default function ClientsPage() {
           <p className="page-subtitle">Ajoutez, recherchez et modifiez les locataires depuis une interface moderne.</p>
         </div>
         <div className="button-group">
-          <button className="btn btn-primary" form="client-form">
-            {editing ? "💾 Enregistrer les modifications" : "➕ Ajouter un locataire"}
+          <button className="btn btn-primary" type="button" onClick={() => { resetForm(); setShowForm(true); }}>
+            ➕ Ajouter un locataire
           </button>
           <button className="btn btn-secondary" type="button" onClick={() => window.print()}>🖨️ Exporter PDF</button>
         </div>
@@ -163,46 +181,59 @@ export default function ClientsPage() {
         </div>
       </section>
 
-      <section className="grid-2">
-        <div className="panel">
-          <h2>{editing ? "✏️ Modifier le locataire" : "➕ Ajouter un locataire"}</h2>
-          <form id="client-form" className="form-grid" onSubmit={save}>
-            <div className="form-field">
-              <label>Nom</label>
-              <input className="input" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} required />
+      <div style={{ display: "flex", gap: "20px", alignItems: "flex-start", flexWrap: "wrap" }}>
+        {showForm && (
+          <div className="panel" style={{ flex: "0 0 360px", width: "360px", maxWidth: "100%", padding: "20px", position: "sticky", top: "20px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+              <h3 style={{ margin: 0, fontSize: "1.1rem" }}>{editing ? "✏️ Modifier locataire" : "➕ Ajouter locataire"}</h3>
+              <button type="button" onClick={() => { setShowForm(false); resetForm(); }} style={{ background: "none", border: "none", fontSize: "1.3rem", color: "#64748b", cursor: "pointer", padding: 0 }}>✕</button>
             </div>
-            <div className="form-field">
-              <label>Prénom</label>
-              <input className="input" value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} required />
-            </div>
-            <div className="form-field">
-              <label>Sexe</label>
-              <select className="select" value={form.sexe} onChange={(e) => setForm({ ...form, sexe: e.target.value })}>
-                <option value="M">Masculin</option>
-                <option value="F">Féminin</option>
-              </select>
-            </div>
-            <div className="form-field">
-              <label>Téléphone</label>
-              <input className="input" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} />
-            </div>
-            <div className="form-field">
-              <label>Profession</label>
-              <input className="input" value={form.profession} onChange={(e) => setForm({ ...form, profession: e.target.value })} />
-            </div>
-            <div className="form-field">
-              <label>Date d'entrée</label>
-              <input className="input" type="date" value={form.date_entree} onChange={(e) => setForm({ ...form, date_entree: e.target.value })} required />
-            </div>
-            <div className="button-group" style={{ gridColumn: "1 / -1" }}>
-              <button className="btn btn-primary" type="submit">{editing ? "💾 Enregistrer" : "✅ Créer le locataire"}</button>
-              {editing && <button className="btn btn-secondary" type="button" onClick={resetForm}>Annuler</button>}
-            </div>
-            {error && <p className="status-pill status-warning">{error}</p>}
-          </form>
-        </div>
+            <form id="client-form" style={{ display: "flex", flexDirection: "column", gap: "12px" }} onSubmit={save}>
+              <div className="form-field">
+                <label style={{ fontSize: "0.82rem" }}>Nom</label>
+                <input className="input" style={{ padding: "8px 12px" }} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} required placeholder="ex: Diawara" />
+              </div>
+              <div className="form-field">
+                <label style={{ fontSize: "0.82rem" }}>Prénom</label>
+                <input className="input" style={{ padding: "8px 12px" }} value={form.prenom} onChange={(e) => setForm({ ...form, prenom: e.target.value })} required placeholder="ex: Mamadou" />
+              </div>
+              <div className="form-grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div className="form-field">
+                  <label style={{ fontSize: "0.82rem" }}>Sexe</label>
+                  <select className="select" style={{ padding: "8px 12px" }} value={form.sexe} onChange={(e) => setForm({ ...form, sexe: e.target.value })}>
+                    <option value="M">Masculin</option>
+                    <option value="F">Féminin</option>
+                  </select>
+                </div>
+                <div className="form-field">
+                  <label style={{ fontSize: "0.82rem" }}>Téléphone</label>
+                  <input className="input" style={{ padding: "8px 12px" }} value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} placeholder="ex: 620..." />
+                </div>
+              </div>
+              <div className="form-field">
+                <label style={{ fontSize: "0.82rem" }}>Profession</label>
+                <input className="input" style={{ padding: "8px 12px" }} value={form.profession} onChange={(e) => setForm({ ...form, profession: e.target.value })} placeholder="ex: Commerçant" />
+              </div>
+              <div className="form-field">
+                <label style={{ fontSize: "0.82rem" }}>Date d'entrée</label>
+                <input className="input" style={{ padding: "8px 12px" }} type="date" value={form.date_entree} onChange={(e) => setForm({ ...form, date_entree: e.target.value })} required />
+              </div>
+              <div className="button-group" style={{ marginTop: "6px" }}>
+                <button className="btn btn-primary" type="submit" style={{ width: "100%", padding: "10px" }}>
+                  {editing ? "💾 Enregistrer" : "✅ Enregistrer le locataire"}
+                </button>
+                {editing && (
+                  <button className="btn btn-secondary" type="button" onClick={() => { resetForm(); setShowForm(false); }} style={{ width: "100%", padding: "8px" }}>
+                    Annuler
+                  </button>
+                )}
+              </div>
+              {error && <p className="status-pill status-warning" style={{ fontSize: "0.8rem", marginTop: "8px" }}>{error}</p>}
+            </form>
+          </div>
+        )}
 
-        <div className="panel">
+        <div className="panel" style={{ flex: 1, minWidth: "300px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
             <h2 style={{ margin: 0 }}>Locataires ({rows.length})</h2>
           </div>
@@ -210,24 +241,33 @@ export default function ClientsPage() {
             <p style={{ color: "#94a3b8" }}>Chargement des locataires...</p>
           ) : (
             <>
-              <table className="table">
-                <thead>
+              <div className="table-responsive">
+                <table className="table">
+                  <thead>
                   <tr>
                     <th>#</th>
                     <th>Locataire</th>
                     <th>Contact</th>
                     <th>Profession</th>
+                    <th>Date d'entrée</th>
+                    <th>Chambre</th>
+                    <th>Contrats</th>
+                    <th>Paiements</th>
                     <th>Statut</th>
                     <th>Actions</th>
                   </tr>
-                </thead>
-                <tbody>
+                  </thead>
+                  <tbody>
                   {pagedRows.map((client) => (
                     <tr key={client.id_client}>
                       <td style={{ color: "#64748b" }}>{client.id_client}</td>
                       <td><strong>{client.nom} {client.prenom}</strong><br /><span style={{ fontSize: "0.8rem", color: "#64748b" }}>{client.sexe === "M" ? "👨" : "👩"} {client.sexe}</span></td>
                       <td>{client.telephone || <span style={{ color: "#475569" }}>-</span>}</td>
                       <td>{client.profession || <span style={{ color: "#475569" }}>-</span>}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>{new Date(client.date_entree).toLocaleDateString("fr-FR")}</td>
+                      <td>{client.chambre ? `N° ${client.chambre.numero}` : <span style={{ color: "#64748b" }}>Aucune</span>}</td>
+                      <td>{client._count?.contrats ?? 0}</td>
+                      <td>{client._count?.paiements ?? 0}</td>
                       <td><span className={`status-pill ${client.statut === "Actif" ? "status-complete" : "status-muted"}`}>{client.statut}</span></td>
                       <td>
                         <div className="actions">
@@ -242,8 +282,9 @@ export default function ClientsPage() {
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
+                  </tbody>
+                </table>
+              </div>
 
               {/* Pagination */}
               {totalPages > 1 && (
@@ -258,7 +299,7 @@ export default function ClientsPage() {
             </>
           )}
         </div>
-      </section>
+      </div>
 
       {/* Modal Dossier */}
       {dossierClient && (

@@ -167,3 +167,15 @@ model DemandeContact {
 
   @@map("demandes_contact")
 }
+
+model SmsLog {
+  id_sms     Int      @id @default(autoincrement())
+  telephone  String
+  message    String   @db.Text
+  status     String
+  provider_id String?
+  error      String?  @db.Text
+  created_at DateTime @default(now())
+
+  @@map("sms_logs")
+}

@@ -175,6 +175,14 @@ export default function VisitorPage() {
       });
       setSelectedChambre(null);
       setForm({ sexe: "M", telephone: "", profession: "", mois_paye: "" });
+      // Notify admin tabs that a client was created (same-browser tabs)
+      try {
+        if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+          const bc = new BroadcastChannel("telico-clients");
+          bc.postMessage("client_created");
+          bc.close();
+        }
+      } catch (e) {}
       await loadData(user);
 
     } catch (err: any) {

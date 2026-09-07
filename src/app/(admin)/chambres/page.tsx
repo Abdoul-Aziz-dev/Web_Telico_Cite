@@ -1,5 +1,7 @@
 "use client";
-import { useEffect, useState } from "react";
+
+import { useEffect, useState, useMemo } from "react";
+import Link from "next/link";
 
 type Chambre = {
   id_chambre: number;
@@ -8,118 +10,207 @@ type Chambre = {
   prix: number;
   statut: string;
   photo?: string | null;
+  clients?: { id_client: number; nom: string; prenom: string; telephone?: string | null }[];
 };
+
+type Client = {
+  id_client: number;
+  nom: string;
+  prenom: string;
+  id_chambre?: number | null;
+  telephone?: string | null;
+  statut: string;
+};
+
+const TYPES_CHAMBRE = [
+  "Chambre simple",
+  "Chambre douce meublée",
+  "Chambre douce non meublée",
+  "Chambre salon",
+];
 
 export default function ChambresPage() {
   const [chambres, setChambres] = useState<Chambre[]>([]);
-  const [filteredChambres, setFilteredChambres] = useState<Chambre[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [clients, setClients] = useState<Client[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Chambre | null>(null);
-  const [form, setForm] = useState({ numero: "", type_chambre: "Standard", prix: 0, statut: "Libre" });
-  const [filterStatut, setFilterStatut] = useState("Tous");
-  const [uploadingId, setUploadingId] = useState<number | null>(null);
 
-  async function load() {
+  // Filtres & vue
+  const [search, setSearch] = useState("");
+  const [filterStatut, setFilterStatut] = useState("Tous");
+  const [filterType, setFilterType] = useState("Tous");
+  const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
+
+  // Formulaire Modal
+  const [showForm, setShowForm] = useState(false);
+  const [editing, setEditing] = useState<Chambre | null>(null);
+  const [form, setForm] = useState({
+    numero: "",
+    type_chambre: "Chambre simple",
+    prix: 1500000,
+    statut: "Libre",
+    photo: "",
+  });
+
+  async function loadData() {
     setLoading(true);
     try {
-      const res = await fetch("/api/chambres");
-      const data = await res.json();
-      const list = data.chambres || [];
-      setChambres(list);
-      setFilteredChambres(list);
+      const [roomsRes, clientsRes] = await Promise.all([
+        fetch("/api/chambres"),
+        fetch("/api/clients"),
+      ]);
+      const roomsData = await roomsRes.json();
+      const clientsData = await clientsRes.json();
+
+      setChambres(roomsData.chambres || []);
+      setClients(clientsData.clients || []);
       setError(null);
     } catch {
-      setError("Impossible de charger les chambres.");
+      setError("Impossible de charger la liste des logements.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, []);
-
   useEffect(() => {
-    setFilteredChambres(filterStatut === "Tous" ? chambres : chambres.filter(c => c.statut === filterStatut));
-  }, [chambres, filterStatut]);
+    loadData();
+  }, []);
+
+  const filteredChambres = useMemo(() => {
+    return chambres.filter((c) => {
+      const matchSearch =
+        c.numero.toLowerCase().includes(search.toLowerCase()) ||
+        c.type_chambre.toLowerCase().includes(search.toLowerCase());
+      const matchStatut = filterStatut === "Tous" || c.statut === filterStatut;
+      const matchType = filterType === "Tous" || c.type_chambre === filterType;
+      return matchSearch && matchStatut && matchType;
+    });
+  }, [chambres, search, filterStatut, filterType]);
+
+  // Statistiques
+  const totalChambres = chambres.length;
+  const occupees = chambres.filter((c) => c.statut === "Occupée").length;
+  const libres = chambres.filter((c) => c.statut === "Libre").length;
+  const tauxOccupation = totalChambres === 0 ? 0 : Math.round((occupees / totalChambres) * 100);
+  const potentielMensuel = chambres.reduce((sum, c) => sum + c.prix, 0);
 
   function resetForm() {
     setEditing(null);
-    setForm({ numero: "", type_chambre: "Standard", prix: 0, statut: "Libre" });
+    setForm({
+      numero: "",
+      type_chambre: "Chambre simple",
+      prix: 1500000,
+      statut: "Libre",
+      photo: "",
+    });
   }
 
-  async function save(e: React.FormEvent<HTMLFormElement>) {
+  function handleEdit(c: Chambre) {
+    setEditing(c);
+    setForm({
+      numero: c.numero,
+      type_chambre: c.type_chambre,
+      prix: c.prix,
+      statut: c.statut,
+      photo: c.photo || "",
+    });
+    setShowForm(true);
+  }
+
+  async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     try {
-      if (editing) {
-        await fetch(`/api/chambres/${editing.id_chambre}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
-        setEditing(null);
-      } else {
-        await fetch("/api/chambres", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
-      }
+      const url = editing ? `/api/chambres/${editing.id_chambre}` : "/api/chambres";
+      const method = editing ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+
+      if (!res.ok) throw new Error("Erreur de sauvegarde");
+
       resetForm();
-      load();
-      setError(null);
+      setShowForm(false);
+      loadData();
     } catch {
-      setError("Impossible de sauvegarder la chambre.");
+      setError("Erreur lors de l'enregistrement de la chambre.");
     }
   }
 
-  function handleEdit(chambre: Chambre) {
-    setEditing(chambre);
-    setForm({ numero: chambre.numero, type_chambre: chambre.type_chambre, prix: chambre.prix, statut: chambre.statut });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  async function handleUploadPhoto(chambre: Chambre, file: File) {
-    setUploadingId(chambre.id_chambre);
+  async function handleDelete(id: number, numero: string) {
+    if (!confirm(`Voulez-vous vraiment supprimer la chambre N° ${numero} ?`)) return;
     try {
-      const fd = new FormData();
-      fd.append("file", file);
-      fd.append("id_chambre", String(chambre.id_chambre));
-      const res = await fetch("/api/chambres/upload", { method: "POST", body: fd });
+      const res = await fetch(`/api/chambres/${id}`, { method: "DELETE" });
       if (!res.ok) throw new Error();
-      load();
-    } catch {
-      setError("Impossible d'uploader la photo.");
-    } finally {
-      setUploadingId(null);
-    }
-  }
-
-  async function handleLiberer(chambre: Chambre) {
-    if (!confirm(`Voulez-vous libérer la chambre N° ${chambre.numero} ?`)) return;
-    try {
-      await fetch(`/api/chambres/${chambre.id_chambre}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ ...chambre, statut: "Libre" }) });
-      load();
-    } catch {
-      setError("Impossible de libérer la chambre.");
-    }
-  }
-
-  async function handleDelete(id: number) {
-    if (!confirm("Supprimer définitivement cette chambre ?")) return;
-    try {
-      await fetch(`/api/chambres/${id}`, { method: "DELETE" });
-      load();
+      setChambres((prev) => prev.filter((c) => c.id_chambre !== id));
     } catch {
       setError("Impossible de supprimer la chambre.");
     }
   }
 
-  function exportAvailableRoomsPDF() {
-    const available = chambres.filter(c => c.statut === "Libre");
+  async function handleLiberer(id: number, numero: string) {
+    if (!confirm(`Libérer la chambre N° ${numero} ? Son statut repassera à "Libre".`)) return;
+    try {
+      const res = await fetch(`/api/chambres/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ statut: "Libre" }),
+      });
+      if (!res.ok) throw new Error();
+      loadData();
+    } catch {
+      setError("Erreur lors de la libération de la chambre.");
+    }
+  }
+
+  const getEmojiForType = (type: string) => {
+    switch (type) {
+      case "Chambre simple": return "🛏️";
+      case "Chambre douce meublée": return "✨";
+      case "Chambre douce non meublée": return "🛋️";
+      case "Chambre salon": return "🏠";
+      default: return "🛏️";
+    }
+  };
+
+  function printReport() {
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(`
-      <html><head><title>Cité Telico - Chambres Disponibles</title>
-      <style>body{font-family:Arial,sans-serif;color:#1e293b;padding:40px}h1{text-align:center;margin-bottom:5px}.sub{text-align:center;color:#64748b;font-size:0.9rem;margin-bottom:30px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #e2e8f0;padding:12px 16px;text-align:left;font-size:0.9rem}th{background:#f8fafc;font-weight:600;color:#475569}tr:nth-child(even){background:#f8fafc}.footer{margin-top:50px;text-align:center;font-size:0.8rem;color:#94a3b8}</style>
-      </head><body onload="window.print();window.close()">
-        <h1>Cité Telico</h1>
-        <div class="sub">Chambres disponibles — ${new Date().toLocaleDateString("fr-FR")}</div>
-        <table><thead><tr><th>Chambre</th><th>Type</th><th>Prix mensuel (GNF)</th></tr></thead><tbody>
-        ${available.map(c => `<tr><td><strong>N° ${c.numero}</strong></td><td>${c.type_chambre}</td><td>${c.prix.toLocaleString()} GNF</td></tr>`).join("")}
-        </tbody></table>
-        <div class="footer">Cité Telico &copy; ${new Date().getFullYear()}</div>
+      <html><head><title>Inventaire des Chambres — Cité Telico</title>
+      <style>
+        body{font-family:Arial,sans-serif;color:#1e293b;padding:30px;line-height:1.5}
+        h1{color:#0f172a;border-bottom:2px solid #0f172a;padding-bottom:8px}
+        table{width:100%;border-collapse:collapse;margin-top:16px}
+        th,td{border:1px solid #cbd5e1;padding:8px 12px;text-align:left;font-size:0.85rem}
+        th{background:#f1f5f9;font-weight:700}
+        .libre{color:#166534;font-weight:600}
+        .occupee{color:#991b1b;font-weight:600}
+        .footer{margin-top:40px;text-align:center;font-size:0.75rem;color:#64748b}
+      </style></head>
+      <body onload="window.print();window.close()">
+        <h1>Inventaire des Chambres — Cité Telico</h1>
+        <p><strong>Total :</strong> ${totalChambres} | <strong>Occupées :</strong> ${occupees} | <strong>Libres :</strong> ${libres} | <strong>Taux :</strong> ${tauxOccupation}%</p>
+        <table>
+          <thead>
+            <tr><th>N°</th><th>Type</th><th>Prix mensuel</th><th>Statut</th><th>Occupant actuel</th></tr>
+          </thead>
+          <tbody>
+            ${filteredChambres.map(c => {
+              const clientAcc = clients.find(cl => cl.id_chambre === c.id_chambre && cl.statut === "Actif");
+              return `<tr>
+                <td><strong>${c.numero}</strong></td>
+                <td>${c.type_chambre}</td>
+                <td>${c.prix.toLocaleString()} GNF</td>
+                <td class="${c.statut === 'Libre' ? 'libre' : 'occupee'}">${c.statut}</td>
+                <td>${clientAcc ? `${clientAcc.prenom} ${clientAcc.nom}` : "—"}</td>
+              </tr>`;
+            }).join("")}
+          </tbody>
+        </table>
+        <div class="footer">Cité Telico — Édité le ${new Date().toLocaleDateString("fr-FR")}</div>
       </body></html>
     `);
     win.document.close();
@@ -127,116 +218,288 @@ export default function ChambresPage() {
 
   return (
     <main className="page">
+      {/* En-tête */}
       <div className="page-header">
         <div>
-          <h1 className="page-title">Gestion des chambres</h1>
-          <p className="page-subtitle">Supervisez la disponibilité des chambres, leur tarification et leur statut en temps réel.</p>
+          <h1 className="page-title">Gestion des Logements & Chambres</h1>
+          <p className="page-subtitle">Visualisez, filtrez et gérez le parc immobilier de la Cité Telico.</p>
         </div>
         <div className="button-group">
-          <button className="btn btn-primary" form="room-form">{editing ? "💾 Modifier la chambre" : "➕ Nouvelle chambre"}</button>
-          <button className="btn btn-secondary" type="button" onClick={exportAvailableRoomsPDF}>🖨️ Exporter PDF</button>
+          <button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>
+            ➕ Ajouter une chambre
+          </button>
+          <button className="btn btn-secondary" onClick={printReport}>
+            🖨️ Exporter PDF / Imprimer
+          </button>
         </div>
       </div>
 
-      <section className="panel panel-highlight" style={{ display: "flex", gap: "30px", alignItems: "center", justifyContent: "space-between" }}>
-        <div>
-          <h2>Filtrer chambres</h2>
-          <p style={{ margin: 0, color: "#64748b", fontSize: "0.85rem" }}>Visualisez les chambres selon leur état d'occupation.</p>
+      {error && (
+        <div className="status-pill status-warning" style={{ marginBottom: "20px", justifyContent: "center" }}>
+          ⚠️ {error}
         </div>
-        <div style={{ display: "flex", gap: "10px" }}>
-          {["Tous", "Libre", "Occupée"].map(opt => (
-            <button key={opt} className={`btn ${filterStatut === opt ? "btn-primary" : "btn-secondary"}`} onClick={() => setFilterStatut(opt)} style={{ padding: "8px 16px", fontSize: "0.85rem" }}>
-              {opt === "Libre" ? "🟢 Libre" : opt === "Occupée" ? "⚠️ Occupée" : "📋 Tous"}
+      )}
+
+      {/* Cartes Métriques */}
+      <section className="grid-4" style={{ marginBottom: "24px" }}>
+        <article className="metric-card" style={{ borderLeft: "5px solid #38bdf8" }}>
+          <span style={{ color: "#94a3b8" }}>Chambres Totales</span>
+          <strong>{totalChambres}</strong>
+          <span style={{ fontSize: "0.8rem", color: "#64748b" }}>Potentiel : {potentielMensuel.toLocaleString()} GNF</span>
+        </article>
+        <article className="metric-card" style={{ borderLeft: "5px solid #34d399" }}>
+          <span style={{ color: "#94a3b8" }}>Chambres Libres</span>
+          <strong>{libres}</strong>
+          <span style={{ fontSize: "0.8rem", color: "#34d399" }}>Prêtes à être louées</span>
+        </article>
+        <article className="metric-card" style={{ borderLeft: "5px solid #f43f5e" }}>
+          <span style={{ color: "#94a3b8" }}>Chambres Occupées</span>
+          <strong>{occupees}</strong>
+          <span style={{ fontSize: "0.8rem", color: "#f43f5e" }}>Taux de remplissage : {tauxOccupation}%</span>
+        </article>
+        <article className="metric-card" style={{ borderLeft: "5px solid #a855f7" }}>
+          <span style={{ color: "#94a3b8" }}>Taux d'occupation</span>
+          <strong>{tauxOccupation}%</strong>
+          <div style={{ height: "6px", background: "rgba(255,255,255,0.1)", borderRadius: "3px", marginTop: "8px", overflow: "hidden" }}>
+            <div style={{ height: "100%", width: `${tauxOccupation}%`, background: "#a855f7", borderRadius: "3px" }} />
+          </div>
+        </article>
+      </section>
+
+      {/* Barre de Recherche et Filtres */}
+      <section className="panel" style={{ marginBottom: "24px" }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", gap: "12px", flex: 1, minWidth: "280px" }}>
+            <input
+              className="input input-search"
+              placeholder="🔍 Rechercher par N° ou type de chambre..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <select
+              className="select"
+              value={filterStatut}
+              onChange={(e) => setFilterStatut(e.target.value)}
+              style={{ width: "160px" }}
+            >
+              <option value="Tous">Tous statuts</option>
+              <option value="Libre">Libres</option>
+              <option value="Occupée">Occupées</option>
+            </select>
+            <select
+              className="select"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              style={{ width: "200px" }}
+            >
+              <option value="Tous">Tous types</option>
+              {TYPES_CHAMBRE.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Toggle de vue */}
+          <div style={{ display: "flex", gap: "6px", background: "rgba(255,255,255,0.05)", padding: "4px", borderRadius: "12px" }}>
+            <button
+              className={`btn btn-sm ${viewMode === "grid" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setViewMode("grid")}
+            >
+              📱 Grille
             </button>
-          ))}
+            <button
+              className={`btn btn-sm ${viewMode === "table" ? "btn-primary" : "btn-secondary"}`}
+              onClick={() => setViewMode("table")}
+            >
+              📊 Tableau
+            </button>
+          </div>
         </div>
       </section>
 
-      <section className="grid-2">
-        <div className="panel">
-          <h2>{editing ? `✏️ Modifier chambre N° ${editing.numero}` : "➕ Nouvelle chambre"}</h2>
-          <form id="room-form" className="form-grid" onSubmit={save}>
-            <div className="form-field">
-              <label>Numéro de chambre</label>
-              <input className="input" value={form.numero} onChange={e => setForm({ ...form, numero: e.target.value })} required />
-            </div>
-            <div className="form-field">
-              <label>Type de chambre</label>
-              <select className="select" value={form.type_chambre} onChange={e => setForm({ ...form, type_chambre: e.target.value })}>
-                <option value="Chambre simple">Chambre simple</option>
-                <option value="Chambre douce meublée">Chambre douce meublée</option>
-                <option value="Chambre douce non meublée">Chambre douce non meublée</option>
-                <option value="Chambre salon">Chambre salon</option>
-              </select>
-            </div>
-            <div className="form-field">
-              <label>Prix mensuel (GNF)</label>
-              <input className="input" type="number" min="0" value={form.prix} onChange={e => setForm({ ...form, prix: Number(e.target.value) })} required />
-            </div>
-            <div className="form-field">
-              <label>Statut</label>
-              <select className="select" value={form.statut} onChange={e => setForm({ ...form, statut: e.target.value })}>
-                <option value="Libre">Libre</option><option value="Occupée">Occupée</option>
-              </select>
-            </div>
-            <div className="button-group">
-              <button className="btn btn-primary" type="submit">{editing ? "Enregistrer" : "Créer"}</button>
-              {editing && <button className="btn btn-secondary" type="button" onClick={resetForm}>Annuler</button>}
-            </div>
-            {error && <p className="status-pill status-warning">{error}</p>}
-          </form>
+      {/* Liste des Chambres */}
+      {loading ? (
+        <div style={{ textAlign: "center", padding: "60px", color: "#94a3b8" }}>
+          <p>Chargement des chambres en cours...</p>
         </div>
+      ) : filteredChambres.length === 0 ? (
+        <div className="panel" style={{ textAlign: "center", padding: "40px", color: "#94a3b8" }}>
+          <p style={{ fontSize: "1.1rem" }}>Aucune chambre ne correspond à vos filtres.</p>
+          <button className="btn btn-secondary" onClick={() => { setSearch(""); setFilterStatut("Tous"); setFilterType("Tous"); }} style={{ marginTop: "12px" }}>
+            Réinitialiser les filtres
+          </button>
+        </div>
+      ) : viewMode === "grid" ? (
+        <div className="room-showcase-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: "20px" }}>
+          {filteredChambres.map((c) => {
+            const occupant = clients.find((cl) => cl.id_chambre === c.id_chambre && cl.statut === "Actif");
+            const isLibre = c.statut === "Libre";
 
+            return (
+              <article key={c.id_chambre} className="panel" style={{ padding: "20px", display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative" }}>
+                <div>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "12px" }}>
+                    <div>
+                      <span style={{ fontSize: "2rem", display: "block", marginBottom: "4px" }}>{getEmojiForType(c.type_chambre)}</span>
+                      <h3 style={{ margin: 0, fontSize: "1.25rem", color: "#fff" }}>Chambre N° {c.numero}</h3>
+                      <span style={{ fontSize: "0.82rem", color: "#94a3b8" }}>{c.type_chambre}</span>
+                    </div>
+                    <span className={`status-pill ${isLibre ? "status-complete" : "status-warning"}`} style={{ fontSize: "0.78rem" }}>
+                      {c.statut}
+                    </span>
+                  </div>
+
+                  <div style={{ margin: "16px 0", padding: "12px", background: "rgba(255,255,255,0.03)", borderRadius: "12px" }}>
+                    <span style={{ fontSize: "0.8rem", color: "#64748b", display: "block" }}>Loyer Mensuel</span>
+                    <strong style={{ fontSize: "1.15rem", color: "#34d399" }}>{c.prix.toLocaleString()} GNF</strong>
+                  </div>
+
+                  {occupant ? (
+                    <div style={{ padding: "10px", background: "rgba(244,63,94,0.08)", border: "1px solid rgba(244,63,94,0.2)", borderRadius: "10px", marginBottom: "16px" }}>
+                      <span style={{ fontSize: "0.78rem", color: "#f43f5e", fontWeight: 600 }}>Occupé par :</span>
+                      <p style={{ margin: "2px 0 0 0", fontSize: "0.9rem", fontWeight: 600, color: "#fff" }}>
+                        👤 {occupant.prenom} {occupant.nom}
+                      </p>
+                      {occupant.telephone && <span style={{ fontSize: "0.78rem", color: "#94a3b8" }}>📞 {occupant.telephone}</span>}
+                    </div>
+                  ) : (
+                    <div style={{ padding: "10px", background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.2)", borderRadius: "10px", marginBottom: "16px" }}>
+                      <span style={{ fontSize: "0.8rem", color: "#34d399" }}>🟢 Chambre disponible à la location</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="button-group" style={{ marginTop: "12px", gap: "6px" }}>
+                  <button className="btn btn-sm btn-secondary" onClick={() => handleEdit(c)} style={{ flex: 1 }}>✏️ Modifier</button>
+                  {!isLibre && (
+                    <button className="btn btn-sm btn-secondary" onClick={() => handleLiberer(c.id_chambre, c.numero)} style={{ background: "rgba(234,179,8,0.15)", color: "#eab308", border: "1px solid rgba(234,179,8,0.3)" }}>🔓 Libérer</button>
+                  )}
+                  <button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id_chambre, c.numero)}>🗑️</button>
+                </div>
+              </article>
+            );
+          })}
+        </div>
+      ) : (
         <div className="panel">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "18px" }}>
-            <h2 style={{ margin: 0 }}>Inventaire ({filteredChambres.length} chambres)</h2>
-            <span style={{ fontSize: "0.85rem", color: "#64748b" }}>
-              🟢 {chambres.filter(c => c.statut === "Libre").length} libres · ⚠️ {chambres.filter(c => c.statut === "Occupée").length} occupées
-            </span>
-          </div>
-          {loading ? (
-            <p style={{ color: "#94a3b8" }}>Chargement des chambres...</p>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr><th>N°</th><th>Photo</th><th>Type</th><th>Prix / mois</th><th>Statut</th><th>Actions</th></tr>
-              </thead>
-              <tbody>
-                {filteredChambres.map(row => (
-                  <tr key={row.id_chambre}>
-                    <td><strong>{row.numero}</strong></td>
+          <table className="table">
+            <thead>
+              <tr>
+                <th>N°</th>
+                <th>Type</th>
+                <th>Loyer mensuel</th>
+                <th>Statut</th>
+                <th>Occupant Actuel</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredChambres.map((c) => {
+                const occupant = clients.find((cl) => cl.id_chambre === c.id_chambre && cl.statut === "Actif");
+                return (
+                  <tr key={c.id_chambre}>
+                    <td><strong>N° {c.numero}</strong></td>
+                    <td>{getEmojiForType(c.type_chambre)} {c.type_chambre}</td>
+                    <td><strong style={{ color: "#34d399" }}>{c.prix.toLocaleString()} GNF</strong></td>
                     <td>
-                      {row.photo
-                        ? <img src={row.photo} alt="chambre" style={{ width: 48, height: 36, objectFit: "cover", borderRadius: 8, border: "1px solid rgba(255,255,255,0.1)" }} />
-                        : <span style={{ color: "#475569", fontSize: "0.8rem" }}>—</span>}
-                    </td>
-                    <td>{row.type_chambre}</td>
-                    <td>{row.prix.toLocaleString()} <span style={{ fontSize: "0.8rem", color: "#64748b" }}>GNF</span></td>
-                    <td>
-                      <span className={`status-pill ${row.statut === "Libre" ? "status-complete" : "status-warning"}`}>
-                        {row.statut === "Libre" ? "🟢 Libre" : "⚠️ Occupée"}
+                      <span className={`status-pill ${c.statut === "Libre" ? "status-complete" : "status-warning"}`}>
+                        {c.statut}
                       </span>
                     </td>
                     <td>
+                      {occupant ? (
+                        <Link href={`/clients/${occupant.id_client}`} style={{ color: "#38bdf8", textDecoration: "underline" }}>
+                          👤 {occupant.prenom} {occupant.nom}
+                        </Link>
+                      ) : (
+                        <span style={{ color: "#64748b" }}>—</span>
+                      )}
+                    </td>
+                    <td>
                       <div className="actions">
-                        <button className="btn btn-sm btn-secondary" onClick={() => handleEdit(row)}>✏️</button>
-                        <label className="btn btn-sm btn-secondary" title="Changer la photo" style={{ cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-                          {uploadingId === row.id_chambre ? "⏳" : "🖼️"}
-                          <input type="file" accept="image/*" style={{ display: "none" }} onChange={e => { if (e.target.files?.[0]) handleUploadPhoto(row, e.target.files[0]); e.target.value = ""; }} />
-                        </label>
-                        {row.statut === "Occupée" && (
-                          <button className="btn btn-sm btn-secondary" onClick={() => handleLiberer(row)} style={{ background: "rgba(52,211,153,0.12)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }}>🔓 Libérer</button>
+                        <button className="btn btn-sm btn-secondary" onClick={() => handleEdit(c)}>✏️</button>
+                        {c.statut !== "Libre" && (
+                          <button className="btn btn-sm btn-secondary" onClick={() => handleLiberer(c.id_chambre, c.numero)} style={{ background: "rgba(234,179,8,0.15)", color: "#eab308" }}>🔓 Libérer</button>
                         )}
-                        <button className="btn btn-sm btn-danger" onClick={() => handleDelete(row.id_chambre)}>🗑️</button>
+                        <button className="btn btn-sm btn-danger" onClick={() => handleDelete(c.id_chambre, c.numero)}>🗑️</button>
                       </div>
                     </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                );
+              })}
+            </tbody>
+          </table>
         </div>
-      </section>
+      )}
+
+      {/* Modal / Formulaire d'ajout ou modification */}
+      {showForm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: "20px" }}>
+          <div className="panel" style={{ maxWidth: "480px", width: "100%", padding: "30px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ margin: 0 }}>{editing ? "✏️ Modifier la chambre" : "➕ Nouvelle chambre"}</h2>
+              <button onClick={() => { setShowForm(false); resetForm(); }} style={{ background: "none", border: "none", fontSize: "1.4rem", color: "#64748b", cursor: "pointer" }}>✕</button>
+            </div>
+
+            <form onSubmit={handleSave} className="form-grid">
+              <div className="form-field">
+                <label>Numéro de chambre (ex: 101, A2)</label>
+                <input
+                  className="input"
+                  required
+                  value={form.numero}
+                  onChange={(e) => setForm({ ...form, numero: e.target.value })}
+                  placeholder="ex: 104"
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Type de chambre</label>
+                <select
+                  className="select"
+                  value={form.type_chambre}
+                  onChange={(e) => setForm({ ...form, type_chambre: e.target.value })}
+                >
+                  {TYPES_CHAMBRE.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-field">
+                <label>Loyer mensuel (GNF)</label>
+                <input
+                  className="input"
+                  type="number"
+                  required
+                  step="10000"
+                  value={form.prix}
+                  onChange={(e) => setForm({ ...form, prix: parseFloat(e.target.value) || 0 })}
+                />
+              </div>
+
+              <div className="form-field">
+                <label>Statut initial</label>
+                <select
+                  className="select"
+                  value={form.statut}
+                  onChange={(e) => setForm({ ...form, statut: e.target.value })}
+                >
+                  <option value="Libre">Libre</option>
+                  <option value="Occupée">Occupée</option>
+                </select>
+              </div>
+
+              <div className="button-group" style={{ marginTop: "16px" }}>
+                <button className="btn btn-primary" type="submit" style={{ width: "100%" }}>
+                  {editing ? "💾 Enregistrer les modifications" : "✅ Créer la chambre"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </main>
   );
 }

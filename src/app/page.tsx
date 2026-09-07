@@ -41,16 +41,20 @@ export default function PublicHome() {
   useEffect(() => {
     async function loadData() {
       try {
-        const [roomsRes, authRes] = await Promise.all([
-          fetch("/api/chambres"),
-          fetch("/api/auth/me"),
+        const [roomsResult, authResult] = await Promise.allSettled([
+          fetch("/api/chambres").then((r) => r.json()),
+          fetch("/api/auth/me").then((r) => r.json()),
         ]);
-        const roomsData = await roomsRes.json();
-        const authData = await authRes.json();
-        const disponibles = (roomsData.chambres || []).filter((c: Chambre) => c.statut === "Libre");
-        setChambres(disponibles);
-        setFilteredChambres(disponibles);
-        setUser(authData.user ?? null);
+
+        if (roomsResult.status === "fulfilled" && roomsResult.value?.chambres) {
+          const disponibles = roomsResult.value.chambres.filter((c: Chambre) => c.statut === "Libre");
+          setChambres(disponibles);
+          setFilteredChambres(disponibles);
+        }
+
+        if (authResult.status === "fulfilled" && authResult.value?.user) {
+          setUser(authResult.value.user);
+        }
       } catch (err) {
         console.error("Erreur lors de la récupération des données.", err);
       } finally {

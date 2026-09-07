@@ -11,7 +11,7 @@ type Contrat = {
 };
 
 type Client = { id_client: number; nom: string; prenom: string };
-type Chambre = { id_chambre: number; numero: string; type_chambre: string; prix: number };
+type Chambre = { id_chambre: number; numero: string; type_chambre: string; prix: number; statut: string };
 
 export default function ContratsPage() {
   const [contrats, setContrats] = useState<Contrat[]>([]);
@@ -21,6 +21,7 @@ export default function ContratsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({ id_client: '', chambreIds: [] as number[], date_debut: new Date().toISOString().slice(0, 10), date_fin: '', montant: 0 });
+  const [showForm, setShowForm] = useState(false);
 
   // Filter state
   const [filterType, setFilterType] = useState("Tous"); // "Tous" | "Actifs" | "Expirés"
@@ -61,7 +62,8 @@ export default function ContratsPage() {
       const payload = { id_client: Number(form.id_client), chambreIds: form.chambreIds, date_debut: form.date_debut, date_fin: form.date_fin || null, montant: form.montant };
       await fetch('/api/contrats', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
       setForm({ id_client: '', chambreIds: [], date_debut: new Date().toISOString().slice(0, 10), date_fin: '', montant: 0 });
-      load();
+      setShowForm(false);
+      await load();
       setError(null);
     } catch {
       setError('Impossible de creer le contrat.');
@@ -101,9 +103,9 @@ export default function ContratsPage() {
   function printContractPDF(ct: Contrat) {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
-    
+
     const roomNumbers = ct.contrat_chambres.map(cc => cc.chambre?.numero).filter(Boolean).join(', ');
-    
+
     const html = `
       <html>
         <head>
@@ -209,7 +211,7 @@ export default function ContratsPage() {
           <h1 className="page-title">Contrats de location</h1>
           <p className="page-subtitle">Créez et suivez les contrats signés entre vos locataires et vos chambres.</p>
         </div>
-        <button className="btn btn-primary" form="contract-form">📝 Créer un contrat</button>
+        <button className="btn btn-primary" type="button" onClick={() => setShowForm(true)}>📝 Créer un contrat</button>
       </div>
 
       <section className="panel panel-highlight" style={{ display: 'flex', gap: '30px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
@@ -231,96 +233,130 @@ export default function ContratsPage() {
         </div>
       </section>
 
-      <section className="grid-2">
-        <div className="panel">
-          <h2>📝 Créer un nouveau contrat</h2>
-          <form id="contract-form" className="form-grid" onSubmit={save}>
-            <div className="form-field">
-              <label>Client / Locataire</label>
-              <select className="select" value={form.id_client} onChange={e => setForm({ ...form, id_client: e.target.value })} required>
-                <option value="">Sélectionner un client</option>
-                {clients.map(c => <option key={c.id_client} value={c.id_client}>{c.nom} {c.prenom}</option>)}
-              </select>
+      {/* Modal formulaire — Overlay centré (même comportement que chambres) */}
+      {showForm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 999, padding: "20px" }}>
+          <div className="panel" style={{ maxWidth: "480px", width: "100%", padding: "30px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h2 style={{ margin: 0 }}>📝 Nouveau contrat</h2>
+              <button
+                onClick={() => { setShowForm(false); setForm({ id_client: '', chambreIds: [], date_debut: new Date().toISOString().slice(0, 10), date_fin: '', montant: 0 }); }}
+                style={{ background: "none", border: "none", fontSize: "1.4rem", color: "#64748b", cursor: "pointer" }}
+              >✕</button>
             </div>
-            <div className="form-field">
-              <label>Date de début</label>
-              <input className="input" type="date" value={form.date_debut} onChange={e => setForm({ ...form, date_debut: e.target.value })} required />
-            </div>
-            <div className="form-field">
-              <label>Date de fin (optionnel)</label>
-              <input className="input" type="date" value={form.date_fin} onChange={e => setForm({ ...form, date_fin: e.target.value })} />
-            </div>
-            <div className="form-field">
-              <label>Montant mensuel (GNF)</label>
-              <input className="input" type="number" min="0" value={form.montant} onChange={e => setForm({ ...form, montant: Number(e.target.value) })} required />
-            </div>
-            <div className="form-field" style={{ gridColumn: '1 / -1' }}>
-              <label>Chambres assignées <span style={{ fontSize: '0.8rem', color: '#64748b' }}>(Ctrl+clic pour plusieurs)</span></label>
-              <select className="select" multiple size={4} value={form.chambreIds.map(String)} onChange={e => {
-                const opts = Array.from(e.target.selectedOptions).map(o => Number(o.value));
-                setForm({ ...form, chambreIds: opts });
-              }}>
-                {chambres.map(ch => <option key={ch.id_chambre} value={ch.id_chambre}>{ch.numero} — {ch.type_chambre} ({ch.prix.toLocaleString()} GNF)</option>)}
-              </select>
-            </div>
-            <button className="btn btn-primary" type="submit">✅ Enregistrer le contrat</button>
-            {error && <p className="status-pill status-warning">{error}</p>}
-          </form>
-        </div>
 
-        <div className="panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
-            <h2 style={{ margin: 0 }}>Contrats enregistrés ({filteredContrats.length})</h2>
+            <form id="contract-form" style={{ display: "flex", flexDirection: "column", gap: "12px" }} onSubmit={save}>
+              <div className="form-field">
+                <label style={{ fontSize: "0.82rem" }}>Locataire</label>
+                <select className="select" style={{ padding: "8px 12px" }} value={form.id_client} onChange={e => setForm({ ...form, id_client: e.target.value })} required>
+                  <option value="">Sélectionner un locataire</option>
+                  {clients.map(c => <option key={c.id_client} value={c.id_client}>{c.nom} {c.prenom}</option>)}
+                </select>
+              </div>
+
+              <div className="form-grid" style={{ gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                <div className="form-field">
+                  <label style={{ fontSize: "0.82rem" }}>Date de début</label>
+                  <input className="input" style={{ padding: "8px 12px" }} type="date" value={form.date_debut} onChange={e => setForm({ ...form, date_debut: e.target.value })} required />
+                </div>
+                <div className="form-field">
+                  <label style={{ fontSize: "0.82rem" }}>Date fin (opt.)</label>
+                  <input className="input" style={{ padding: "8px 12px" }} type="date" value={form.date_fin} onChange={e => setForm({ ...form, date_fin: e.target.value })} />
+                </div>
+              </div>
+
+              <div className="form-field">
+                <label style={{ fontSize: "0.82rem" }}>Montant mensuel (GNF)</label>
+                <input className="input" style={{ padding: "8px 12px" }} type="number" min="0" value={form.montant} onChange={e => setForm({ ...form, montant: Number(e.target.value) })} required placeholder="ex: 1500000" />
+              </div>
+
+              <div className="form-field">
+                <label style={{ fontSize: "0.82rem" }}>
+                  Chambre(s) assignée(s) <span style={{ fontSize: "0.75rem", color: "#64748b" }}>(Ctrl+clic = plusieurs)</span>
+                </label>
+                <select
+                  className="select"
+                  multiple
+                  size={4}
+                  style={{ padding: "6px 10px", fontSize: "0.85rem" }}
+                  value={form.chambreIds.map(String)}
+                  onChange={e => {
+                    const opts = Array.from(e.target.selectedOptions).map(o => Number(o.value));
+                    setForm({ ...form, chambreIds: opts });
+                  }}
+                >
+                  {chambres.map(ch => (
+                    <option key={ch.id_chambre} value={ch.id_chambre}>
+                      Ch. {ch.numero} — {ch.type_chambre} ({ch.prix.toLocaleString()} GNF) [{ch.statut}]
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="button-group" style={{ marginTop: "6px" }}>
+                <button className="btn btn-primary" type="submit" style={{ width: "100%", padding: "10px" }}>
+                  ✅ Enregistrer le contrat
+                </button>
+              </div>
+              {error && <p className="status-pill status-warning" style={{ fontSize: "0.8rem", marginTop: "8px" }}>{error}</p>}
+            </form>
           </div>
-          {loading ? (
-            <p style={{ color: '#94a3b8' }}>Chargement des contrats...</p>
-          ) : (
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>ID</th>
-                  <th>Client</th>
-                  <th>Chambres</th>
-                  <th>Début</th>
-                  <th>Fin</th>
-                  <th>Montant</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredContrats.map(ct => {
-                  const isExpired = ct.date_fin && new Date(ct.date_fin) < new Date();
-                  return (
-                    <tr key={ct.id_contrat}>
-                      <td style={{ color: '#64748b' }}>#{ct.id_contrat}</td>
-                      <td><strong>{ct.client?.nom} {ct.client?.prenom}</strong></td>
-                      <td>{ct.contrat_chambres.map(cc => cc.chambre?.numero).filter(Boolean).join(', ') || '-'}</td>
-                      <td>{formatDate(ct.date_debut)}</td>
-                      <td>
-                        {ct.date_fin ? (
-                          <span className={`status-pill ${isExpired ? 'status-warning' : 'status-complete'}`} style={{ fontSize: '0.78rem' }}>
-                            {formatDate(ct.date_fin)}
-                          </span>
-                        ) : <span style={{ color: '#34d399' }}>En cours</span>}
-                      </td>
-                      <td><strong>{ct.montant.toLocaleString()}</strong> <span style={{ fontSize: '0.8rem', color: '#64748b' }}>GNF</span></td>
-                      <td>
-                        <div className="actions">
-                          <button className="btn btn-sm btn-secondary" onClick={() => printContractPDF(ct)} title="Imprimer le contrat">🖨️ Imprimer</button>
-                          {!ct.date_fin && (
-                            <button className="btn btn-sm btn-secondary" onClick={() => handleTerminate(ct.id_contrat)} title="Résilier le bail" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.2)' }}>🛑 Résilier</button>
-                          )}
-                          <button className="btn btn-sm btn-danger" onClick={() => handleDelete(ct.id_contrat)} title="Super-suppression">🗑️</button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
         </div>
-      </section>
+      )}
+
+      {/* Table des contrats */}
+      <div className="panel">
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '18px' }}>
+          <h2 style={{ margin: 0 }}>Contrats enregistrés ({filteredContrats.length})</h2>
+        </div>
+        {loading ? (
+          <p style={{ color: '#94a3b8' }}>Chargement des contrats...</p>
+        ) : (
+          <table className="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Client</th>
+                <th>Chambres</th>
+                <th>Début</th>
+                <th>Fin</th>
+                <th>Montant</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredContrats.map(ct => {
+                const isExpired = ct.date_fin && new Date(ct.date_fin) < new Date();
+                return (
+                  <tr key={ct.id_contrat}>
+                    <td style={{ color: '#64748b' }}>#{ct.id_contrat}</td>
+                    <td><strong>{ct.client?.nom} {ct.client?.prenom}</strong></td>
+                    <td>{ct.contrat_chambres.map(cc => cc.chambre?.numero).filter(Boolean).join(', ') || '-'}</td>
+                    <td>{formatDate(ct.date_debut)}</td>
+                    <td>
+                      {ct.date_fin ? (
+                        <span className={`status-pill ${isExpired ? 'status-warning' : 'status-complete'}`} style={{ fontSize: '0.78rem' }}>
+                          {formatDate(ct.date_fin)}
+                        </span>
+                      ) : <span style={{ color: '#34d399' }}>En cours</span>}
+                    </td>
+                    <td><strong>{ct.montant.toLocaleString()}</strong> <span style={{ fontSize: '0.8rem', color: '#64748b' }}>GNF</span></td>
+                    <td>
+                      <div className="actions">
+                        <button className="btn btn-sm btn-secondary" onClick={() => printContractPDF(ct)} title="Imprimer le contrat">🖨️ Imprimer</button>
+                        {!ct.date_fin && (
+                          <button className="btn btn-sm btn-secondary" onClick={() => handleTerminate(ct.id_contrat)} title="Résilier le bail" style={{ background: 'rgba(245, 158, 11, 0.12)', color: '#fbbf24', border: '1px solid rgba(245, 158, 11, 0.2)' }}>🛑 Résilier</button>
+                        )}
+                        <button className="btn btn-sm btn-danger" onClick={() => handleDelete(ct.id_contrat)} title="Super-suppression">🗑️</button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
     </main>
   );
 }

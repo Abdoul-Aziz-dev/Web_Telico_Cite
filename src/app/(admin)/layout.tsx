@@ -25,21 +25,33 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   };
 
   useEffect(() => {
+    let isMounted = true;
     async function checkAuth() {
       try {
-        const res = await fetch("/api/auth/me");
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        const res = await fetch("/api/auth/me", { signal: controller.signal });
+        clearTimeout(timeoutId);
+        if (!res.ok) throw new Error("Auth error");
         const data = await res.json();
-        if (!data.user || data.user.role !== "gerant") {
-          router.push("/login");
-        } else {
-          setUser(data.user);
-          setLoading(false);
+        if (isMounted) {
+          if (!data.user || data.user.role !== "gerant") {
+            router.push("/login");
+          } else {
+            setUser(data.user);
+            setLoading(false);
+          }
         }
       } catch {
-        router.push("/login");
+        if (isMounted) {
+          router.push("/login");
+        }
       }
     }
     checkAuth();
+    return () => {
+      isMounted = false;
+    };
   }, [router]);
 
   async function handleLogout() {
