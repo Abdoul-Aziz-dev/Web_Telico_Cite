@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { monthYearToYm } from "../../../lib/dates";
 
 type Summary = {
   clients: number;
@@ -56,8 +57,8 @@ function buildMonthlyBars(paiements: PaiementPreview[], depenses: DepensePreview
   for (const m of months) { revenueByMonth[m.ym] = 0; depenseByMonth[m.ym] = 0; }
 
   for (const p of paiements) {
-    if (p.mois_ym && revenueByMonth[p.mois_ym] !== undefined)
-      revenueByMonth[p.mois_ym] += p.montant;
+    const ym = p.mois_ym || monthYearToYm(p.mois_paye);
+    if (ym && revenueByMonth[ym] !== undefined) revenueByMonth[ym] += p.montant;
   }
   for (const d of depenses) {
     const ym = new Date(d.date_depense).toISOString().slice(0, 7);
@@ -82,6 +83,7 @@ export default function DashboardPage() {
   const [latestPayments, setLatestPayments] = useState<PaiementPreview[]>([]);
   const [allPayments, setAllPayments] = useState<PaiementPreview[]>([]);
   const [allDepenses, setAllDepenses] = useState<DepensePreview[]>([]);
+  const [retardsCount, setRetardsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -89,14 +91,15 @@ export default function DashboardPage() {
     async function loadDashboard() {
       setLoading(true);
       try {
-        const [summaryRes, contratsRes, paiementsRes, depensesRes] = await Promise.all([
+        const [summaryRes, contratsRes, paiementsRes, depensesRes, retardsRes] = await Promise.all([
           fetch("/api/summary", { cache: "no-store" }),
           fetch("/api/contrats", { cache: "no-store" }),
           fetch("/api/paiements", { cache: "no-store" }),
           fetch("/api/depenses", { cache: "no-store" }),
+          fetch("/api/admin/retards", { cache: "no-store" }),
         ]);
 
-        if (!summaryRes.ok || !contratsRes.ok || !paiementsRes.ok || !depensesRes.ok) {
+        if (!summaryRes.ok || !contratsRes.ok || !paiementsRes.ok || !depensesRes.ok || !retardsRes.ok) {
           throw new Error("Impossible de charger les donnees du tableau de bord.");
         }
 
@@ -104,6 +107,7 @@ export default function DashboardPage() {
         const contratsData = await contratsRes.json();
         const paiementsData = await paiementsRes.json();
         const depensesData = await depensesRes.json();
+        const retardsData = await retardsRes.json();
 
         const contractsList = (contratsData.contrats || [])
           .slice()
@@ -120,6 +124,7 @@ export default function DashboardPage() {
         setLatestPayments(paymentsList);
         setAllPayments(paiementsData.paiements || []);
         setAllDepenses(depensesData.depenses || []);
+        setRetardsCount(retardsData.enRetard?.length ?? 0);
         setError(null);
       } catch {
         setError("Impossible de charger les donnees du tableau de bord.");
@@ -131,16 +136,6 @@ export default function DashboardPage() {
   }, []);
 
   const now = new Date();
-  const currentYM = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-
-  const paidThisMonth = new Set(
-    allPayments
-      .filter(p => p.mois_ym === currentYM)
-      .map(p => p.client ? `${p.client.nom} ${p.client.prenom}` : "")
-  );
-
-  const retardsCount = Math.max(0, (summary?.clients ?? 0) - paidThisMonth.size);
-
   const expiringSoon = latestContracts.filter(c => {
     if (!c.date_fin) return false;
     const diff = (new Date(c.date_fin).getTime() - now.getTime()) / (1000 * 60 * 60 * 24);

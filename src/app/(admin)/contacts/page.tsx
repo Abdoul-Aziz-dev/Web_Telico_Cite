@@ -33,6 +33,22 @@ export default function ContactsPage() {
 
   useEffect(() => { load(); }, []);
 
+  async function setProcessed(demande: Demande, traitee: boolean) {
+    try {
+      const res = await fetch("/api/contact", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id_demande: demande.id_demande, traitee }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Impossible de modifier la demande.");
+      setDemandes((current) => current.map((item) => item.id_demande === demande.id_demande ? data.demande : item));
+      if (selected?.id_demande === demande.id_demande) setSelected(data.demande);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Impossible de modifier la demande.");
+    }
+  }
+
   const nonTraitees = demandes.filter((d) => !d.traitee).length;
 
   return (
@@ -85,6 +101,9 @@ export default function ContactsPage() {
                   <td>
                     <button className="btn btn-sm btn-secondary" onClick={() => setSelected(d)}>
                       👁️ Voir
+                    </button>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setProcessed(d, !d.traitee)}>
+                      {d.traitee ? "↩️ Réouvrir" : "✅ Marquer traitée"}
                     </button>
                   </td>
                 </tr>

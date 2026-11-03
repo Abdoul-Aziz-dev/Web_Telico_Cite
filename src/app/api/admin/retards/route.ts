@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "../../../../../prisma/client";
+import { logAudit } from "../../../../lib/audit";
+import { monthYearToYm } from "../../../../lib/dates";
 
 export async function GET() {
   const now = new Date();
   const mois = now.getMonth() + 1;
   const annee = now.getFullYear();
-  const debutMois = new Date(annee, mois - 1, 1);
-  const finMois = new Date(annee, mois, 1);
   const moisStr = `${annee}-${String(mois).padStart(2, "0")}`;
 
   const clientsActifs = await prisma.client.findMany({
@@ -14,12 +14,14 @@ export async function GET() {
     include: {
       chambre: true,
       contrats: {
-        where: { OR: [{ date_fin: null }, { date_fin: { gte: now } }] },
+        where: { date_debut: { lte: now }, OR: [{ date_fin: null }, { date_fin: { gte: now } }] },
         orderBy: { id_contrat: "desc" },
         take: 1,
       },
       paiements: {
-        where: { date_paiement: { gte: debutMois, lt: finMois } },
+        where: {
+          OR: [{ mois_ym: moisStr }, { mois_ym: null, mois_paye: { contains: String(annee) } }],
+        },
       },
     },
   });
@@ -31,7 +33,7 @@ export async function GET() {
   const relancesSet = new Set(relancesExistantes.map(r => r.id_client));
 
   const enRetard = clientsActifs
-    .filter(c => c.contrats.length > 0 && c.paiements.length === 0)
+    .filter(c => c.contrats.length > 0 && !c.paiements.some(p => p.mois_ym === moisStr || monthYearToYm(p.mois_paye) === moisStr))
     .map(c => ({
       id_client: c.id_client,
       nom: c.nom,
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
     } else {
       await prisma.relanceLoyer.create({ data: { id_client, mois, note } });
     }
+    await logAudit("RELANCE_LOYER", `Relance enregistrée pour le locataire #${id_client}, mois ${mois}`);
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ error: "Erreur relance" }, { status: 500 });

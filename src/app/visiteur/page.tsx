@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { escapeHtml } from "../../lib/html";
 
 type Chambre = {
   id_chambre: number;
@@ -39,7 +40,7 @@ type RecuInfo = {
 export default function VisitorPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<{ id_user: number; nom: string; prenom: string; login: string; role: string } | null>(null);
   const [chambres, setChambres] = useState<Chambre[]>([]);
   const [myReservations, setMyReservations] = useState<ReservationInfo[]>([]);
 
@@ -66,36 +67,17 @@ export default function VisitorPage() {
     localStorage.setItem("site_theme", newTheme);
   };
 
-  async function loadData(currentUser: any) {
+  async function loadData() {
     try {
-      // Load free chambers
-      const resRooms = await fetch("/api/chambres");
+      const [resRooms, resReservations] = await Promise.all([
+        fetch("/api/chambres"),
+        fetch("/api/auth/reservations"),
+      ]);
+      if (!resRooms.ok || !resReservations.ok) throw new Error("Impossible de charger votre espace.");
       const roomsData = await resRooms.json();
+      const reservationData = await resReservations.json();
       setChambres((roomsData.chambres || []).filter((c: Chambre) => c.statut === "Libre"));
-
-      // Load visitor's active rentals (query clients by name/prenom)
-      const resClients = await fetch("/api/clients");
-      const clientsData = await resClients.json();
-      
-      const filtered = (clientsData.clients || []).filter(
-        (c: any) =>
-          c.nom.toLowerCase() === currentUser.nom.toLowerCase() &&
-          c.prenom.toLowerCase() === currentUser.prenom.toLowerCase()
-      );
-      
-      // Fetch details for each client record found (to include contracts and payments if endpoints support it, or resolve through custom logic)
-      // Since we just need to list their bookings, let's load all data
-      // For now, clients data includes chamber information as we defined in DB.
-      // Let's resolve their rooms.
-      const resolvedReservations = await Promise.all(
-        filtered.map(async (cli: any) => {
-          // get the individual client details to get specific room etc.
-          const rCli = await fetch(`/api/clients/${cli.id_client}`);
-          const dCli = await rCli.json();
-          return dCli.client;
-        })
-      );
-      setMyReservations(resolvedReservations.filter(Boolean));
+      setMyReservations(reservationData.reservations || []);
     } catch (err) {
       console.error("Erreur chargement donnees", err);
     } finally {
@@ -118,7 +100,7 @@ export default function VisitorPage() {
           const curYear = new Date().getFullYear();
           setForm(f => ({ ...f, mois_paye: `${curMonth} ${curYear}` }));
           
-          await loadData(data.user);
+          await loadData();
         }
       } catch {
         router.push("/login");
@@ -138,7 +120,7 @@ export default function VisitorPage() {
 
   async function handleBookSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedChambre) return;
+    if (!selectedChambre || !user) return;
     setBookingLoading(true);
     setBookingError(null);
 
@@ -183,7 +165,7 @@ export default function VisitorPage() {
           bc.close();
         }
       } catch (e) {}
-      await loadData(user);
+      await loadData();
 
     } catch (err: any) {
       setBookingError(err.message);
@@ -193,6 +175,7 @@ export default function VisitorPage() {
   }
 
   function printRecu(r: RecuInfo) {
+    if (!user) return;
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(`
@@ -214,10 +197,10 @@ export default function VisitorPage() {
           <h2>Conakry, Guinée — Gestion Immobilière</h2>
           <div class="badge">✅ RÉSERVATION CONFIRMÉE</div>
         </div>
-        <div class="row"><span class="label">N° de reçu</span><span class="value" style="font-family:monospace">${r.numero_recu}</span></div>
-        <div class="row"><span class="label">Locataire</span><span class="value">${user.prenom} ${user.nom}</span></div>
-        <div class="row"><span class="label">Chambre réservée</span><span class="value">N° ${r.chambre_numero} — ${r.chambre_type}</span></div>
-        <div class="row"><span class="label">Mois de bail</span><span class="value">${r.mois_paye}</span></div>
+        <div class="row"><span class="label">N° de reçu</span><span class="value" style="font-family:monospace">${escapeHtml(r.numero_recu)}</span></div>
+        <div class="row"><span class="label">Locataire</span><span class="value">${escapeHtml(user.prenom)} ${escapeHtml(user.nom)}</span></div>
+        <div class="row"><span class="label">Chambre réservée</span><span class="value">N° ${escapeHtml(r.chambre_numero)} — ${escapeHtml(r.chambre_type)}</span></div>
+        <div class="row"><span class="label">Mois de bail</span><span class="value">${escapeHtml(r.mois_paye)}</span></div>
         <div class="row"><span class="label">Date de réservation</span><span class="value">${new Date(r.date_paiement).toLocaleDateString("fr-FR")}</span></div>
         <div class="amount">
           <div style="color:#64748b;font-size:0.88rem;margin-bottom:8px">Montant encaissé</div>
@@ -230,6 +213,7 @@ export default function VisitorPage() {
   }
 
   function printRecuPaiement(p: { numero_recu?: string | null; montant: number; mois_paye: string; date_paiement: string }, chambreNum: string) {
+    if (!user) return;
     const win = window.open("", "_blank");
     if (!win) return;
     win.document.write(`
@@ -246,10 +230,10 @@ export default function VisitorPage() {
       </style></head>
       <body onload="window.print();window.close()">
         <div class="header"><h1>CITÉ TELICO</h1><div class="badge">✅ PAIEMENT CONFIRMÉ</div></div>
-        <div class="row"><span class="label">N° reçu</span><span class="value" style="font-family:monospace">${p.numero_recu || "—"}</span></div>
-        <div class="row"><span class="label">Locataire</span><span class="value">${user.prenom} ${user.nom}</span></div>
-        <div class="row"><span class="label">Chambre</span><span class="value">N° ${chambreNum}</span></div>
-        <div class="row"><span class="label">Mois payé</span><span class="value">${p.mois_paye}</span></div>
+        <div class="row"><span class="label">N° reçu</span><span class="value" style="font-family:monospace">${escapeHtml(p.numero_recu || "—")}</span></div>
+        <div class="row"><span class="label">Locataire</span><span class="value">${escapeHtml(user.prenom)} ${escapeHtml(user.nom)}</span></div>
+        <div class="row"><span class="label">Chambre</span><span class="value">N° ${escapeHtml(chambreNum)}</span></div>
+        <div class="row"><span class="label">Mois payé</span><span class="value">${escapeHtml(p.mois_paye)}</span></div>
         <div class="row"><span class="label">Date</span><span class="value">${new Date(p.date_paiement).toLocaleDateString("fr-FR")}</span></div>
         <div class="amount"><div style="color:#64748b;font-size:0.88rem;margin-bottom:8px">Montant</div><div class="amount-val">${p.montant.toLocaleString()} GNF</div></div>
         <div class="footer">Cité Telico &copy; ${new Date().getFullYear()}</div>
@@ -268,7 +252,7 @@ export default function VisitorPage() {
     }
   };
 
-  if (loading) {
+  if (loading || !user) {
     return (
       <div style={{
         minHeight: "100vh",

@@ -91,12 +91,14 @@ export default function ClientsPage() {
       if (editing) {
         const res = await fetch(`/api/clients/${editing.id_client}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Impossible de mettre à jour le client.");
         if (data.client) {
           setClients((prev) => prev.map((p) => (p.id_client === data.client.id_client ? data.client : p)));
         }
       } else {
         const res = await fetch("/api/clients", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Impossible de créer le client.");
         if (data?.client) {
           setClients((prev) => {
             if (prev.find((p) => p.id_client === data.client.id_client)) return prev;
@@ -108,8 +110,8 @@ export default function ClientsPage() {
       resetForm();
       setShowForm(false);
       setError(null);
-    } catch {
-      setError(editing ? "Impossible de mettre à jour le client." : "Impossible de créer le client.");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : editing ? "Impossible de mettre à jour le client." : "Impossible de créer le client.");
     }
   }
 
@@ -127,7 +129,11 @@ export default function ClientsPage() {
   async function handleDelete(id: number) {
     if (!confirm("Supprimer ce client ?")) return;
     try {
-      await fetch(`/api/clients/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Impossible de supprimer le client.");
+      }
       setClients((prev) => prev.filter((p) => p.id_client !== id));
       setError(null);
     } catch {

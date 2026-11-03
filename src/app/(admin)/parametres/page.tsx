@@ -14,7 +14,7 @@ export default function ParametresPage() {
   // Formulaire création user
   const [newUser, setNewUser] = useState({ nom: "", prenom: "", login: "", password: "", role: "visiteur" });
   // Formulaire changement MDP
-  const [pwdForm, setPwdForm] = useState({ id_user: "", new_password: "", confirm: "" });
+  const [pwdForm, setPwdForm] = useState({ id_user: "", current_password: "", new_password: "", confirm: "" });
   // Vidage
   const [clearConfirm, setClearConfirm] = useState("");
   // Restauration
@@ -68,12 +68,17 @@ export default function ParametresPage() {
     const res = await fetch("/api/admin/parametres", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "change_password", id_user: Number(pwdForm.id_user), new_password: pwdForm.new_password }),
+      body: JSON.stringify({
+        action: "change_password",
+        id_user: Number(pwdForm.id_user),
+        current_password: pwdForm.current_password,
+        new_password: pwdForm.new_password,
+      }),
     });
     const data = await res.json();
     if (!res.ok) return notify(data.error, "err");
     notify("Mot de passe modifié avec succès !", "ok");
-    setPwdForm({ id_user: "", new_password: "", confirm: "" });
+    setPwdForm({ id_user: "", current_password: "", new_password: "", confirm: "" });
     loadData();
   }
 
@@ -181,12 +186,12 @@ export default function ParametresPage() {
               <div className="form-field"><label>Nom</label><input className="input" required value={newUser.nom} onChange={(e) => setNewUser({ ...newUser, nom: e.target.value })} /></div>
               <div className="form-field"><label>Prénom</label><input className="input" required value={newUser.prenom} onChange={(e) => setNewUser({ ...newUser, prenom: e.target.value })} /></div>
               <div className="form-field"><label>Login</label><input className="input" required value={newUser.login} onChange={(e) => setNewUser({ ...newUser, login: e.target.value })} autoCapitalize="none" /></div>
-              <div className="form-field"><label>Mot de passe</label><input className="input" type="password" required minLength={6} value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} /></div>
+              <div className="form-field"><label>Mot de passe (12 caractères minimum)</label><input className="input" type="password" required minLength={12} value={newUser.password} onChange={(e) => setNewUser({ ...newUser, password: e.target.value })} /></div>
               <div className="form-field">
                 <label>Rôle</label>
                 <select className="select" value={newUser.role} onChange={(e) => setNewUser({ ...newUser, role: e.target.value })}>
-                  <option value="visiteur">Visiteur (Lecture seule)</option>
-                  <option value="gerant">Gérant (Administrateur)</option>
+                  <option value="visiteur">Visiteur</option>
+                  <option value="gerant">Gérant / Administrateur</option>
                 </select>
               </div>
               <button className="btn btn-primary" type="submit">✅ Créer l'utilisateur</button>
@@ -237,7 +242,8 @@ export default function ParametresPage() {
                   {users.map((u) => <option key={u.id_user} value={u.id_user}>{u.prenom} {u.nom} ({u.login} - {u.role})</option>)}
                 </select>
               </div>
-              <div className="form-field"><label>Nouveau mot de passe</label><input className="input" type="password" required minLength={6} value={pwdForm.new_password} onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })} /></div>
+              <div className="form-field"><label>Votre mot de passe actuel (gérant)</label><input className="input" type="password" required value={pwdForm.current_password} onChange={(e) => setPwdForm({ ...pwdForm, current_password: e.target.value })} /></div>
+              <div className="form-field"><label>Nouveau mot de passe (12 caractères minimum)</label><input className="input" type="password" required minLength={12} value={pwdForm.new_password} onChange={(e) => setPwdForm({ ...pwdForm, new_password: e.target.value })} /></div>
               <div className="form-field"><label>Confirmer le mot de passe</label><input className="input" type="password" required value={pwdForm.confirm} onChange={(e) => setPwdForm({ ...pwdForm, confirm: e.target.value })} /></div>
               <button className="btn btn-primary" type="submit" style={{ width: "100%" }}>🔒 Mettre à jour le mot de passe</button>
             </form>
@@ -252,7 +258,7 @@ export default function ParametresPage() {
           <div className="panel">
             <h2>💾 Exporter une Sauvegarde</h2>
             <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: "20px" }}>
-              Téléchargez un fichier de sauvegarde JSON contenant l'intégralité des données (Clients, Chambres, Contrats, Paiements, Dépenses, Clôtures, Mails).
+              La sauvegarde inclut toutes les données, comptes, empreintes de mots de passe et journaux. Ce fichier est confidentiel : conservez-le dans un emplacement sécurisé.
             </p>
             <button className="btn btn-primary" onClick={handleDownloadBackup} style={{ width: "100%", padding: "14px" }}>
               ⬇️ Télécharger la sauvegarde (.JSON)
@@ -263,7 +269,7 @@ export default function ParametresPage() {
           <div className="panel" style={{ border: "1px solid rgba(56,189,248,0.3)" }}>
             <h2>🔄 Restaurer la Base de Données</h2>
             <p style={{ color: "#94a3b8", fontSize: "0.9rem", marginBottom: "20px" }}>
-              Restaurez les données de la Cité Telico à partir d'un fichier de sauvegarde JSON précédemment exporté.
+              Seules les sauvegardes complètes version 2.0 sont acceptées. La restauration remplace toutes les données, y compris les comptes et leurs mots de passe, et nécessite que la sauvegarde contienne votre compte gérant actuel.
             </p>
             <form onSubmit={handleRestoreBackup} className="form-grid">
               <div className="form-field">

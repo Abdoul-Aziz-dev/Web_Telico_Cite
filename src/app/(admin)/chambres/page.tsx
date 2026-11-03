@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
+import { escapeHtml } from "../../../lib/html";
 
 type Chambre = {
   id_chambre: number;
@@ -201,11 +202,11 @@ export default function ChambresPage() {
             ${filteredChambres.map(c => {
               const clientAcc = clients.find(cl => cl.id_chambre === c.id_chambre && cl.statut === "Actif");
               return `<tr>
-                <td><strong>${c.numero}</strong></td>
-                <td>${c.type_chambre}</td>
+                <td><strong>${escapeHtml(c.numero)}</strong></td>
+                <td>${escapeHtml(c.type_chambre)}</td>
                 <td>${c.prix.toLocaleString()} GNF</td>
-                <td class="${c.statut === 'Libre' ? 'libre' : 'occupee'}">${c.statut}</td>
-                <td>${clientAcc ? `${clientAcc.prenom} ${clientAcc.nom}` : "—"}</td>
+                <td class="${c.statut === 'Libre' ? 'libre' : 'occupee'}">${escapeHtml(c.statut)}</td>
+                <td>${clientAcc ? `${escapeHtml(clientAcc.prenom)} ${escapeHtml(clientAcc.nom)}` : "—"}</td>
               </tr>`;
             }).join("")}
           </tbody>

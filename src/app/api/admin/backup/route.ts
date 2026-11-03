@@ -1,32 +1,52 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { prisma } from "../../../../../prisma/client";
+import { verifySessionToken } from "../../../../lib/session";
 
 export async function GET() {
   try {
-    const session = cookies().get("user_session");
-    if (!session) return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
-    const user = JSON.parse(session.value);
+    const user = await verifySessionToken(cookies().get("user_session")?.value);
+    if (!user) return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
     if (user.role !== "gerant") return NextResponse.json({ error: "Non autorisé" }, { status: 403 });
 
-    const [clients, chambres, contrats, contratChambres, paiements, depenses, clotures, users, demandesContact] = await Promise.all([
+    await prisma.auditLog.create({
+      data: {
+        utilisateur: user.login,
+        id_user: user.id_user,
+        action: "SAUVEGARDE",
+        details: "Sauvegarde complète de la base téléchargée",
+      },
+    });
+
+    const [
+      users, clients, chambres, contrats, contratChambres, paiements, paiementsArchives,
+      depenses, depensesArchives, clotures, auditLogs, connexionLogs, demandesContact,
+      relances, appConfigs, smsLogs,
+    ] = await Promise.all([
+      prisma.user.findMany(),
       prisma.client.findMany(),
       prisma.chambre.findMany(),
       prisma.contrat.findMany(),
       prisma.contratChambre.findMany(),
       prisma.paiement.findMany(),
+      prisma.paiementArchive.findMany(),
       prisma.depense.findMany(),
+      prisma.depenseArchive.findMany(),
       prisma.cloture.findMany(),
-      prisma.user.findMany({ select: { id_user: true, nom: true, prenom: true, login: true, role: true } }),
+      prisma.auditLog.findMany(),
+      prisma.connexionLog.findMany(),
       prisma.demandeContact.findMany(),
+      prisma.relanceLoyer.findMany(),
+      prisma.appConfig.findMany(),
+      prisma.smsLog.findMany(),
     ]);
 
     const backup = {
-      meta: { date: new Date().toISOString(), version: "1.0", source: "Cité Telico" },
-      clients, chambres, contrats, contratChambres, paiements, depenses, clotures, users, demandesContact,
+      meta: { date: new Date().toISOString(), version: "2.0", source: "Cité Telico" },
+      users, clients, chambres, contrats, contratChambres, paiements, paiementsArchives,
+      depenses, depensesArchives, clotures, auditLogs, connexionLogs, demandesContact,
+      relances, appConfigs, smsLogs,
     };
-
-    await prisma.auditLog.create({ data: { utilisateur: user.login, id_user: user.id_user, action: "SAUVEGARDE", details: "Sauvegarde complète téléchargée" } });
 
     const filename = `telico-backup-${new Date().toISOString().slice(0, 10)}.json`;
     return new NextResponse(JSON.stringify(backup, null, 2), {

@@ -3,7 +3,7 @@ import { prisma } from "../../../../prisma/client";
 
 export async function GET() {
   const [clients, chambres, contrats, paiements, depenses, clotures, chambresOccupees, revenue] = await Promise.all([
-    prisma.client.count(),
+    prisma.client.count({ where: { statut: "Actif" } }),
     prisma.chambre.count(),
     prisma.contrat.count(),
     prisma.paiement.count(),

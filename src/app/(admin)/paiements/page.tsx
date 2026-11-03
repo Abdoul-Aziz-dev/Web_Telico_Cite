@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { escapeHtml } from "../../../lib/html";
 
 const ITEMS_PAR_PAGE = 10;
 
@@ -51,15 +52,20 @@ export default function PaiementsPage() {
     try {
       let createdPaiement: Paiement | null = null;
       if (editing) {
-        await fetch(`/api/paiements/${editing.id_paiement}`, {
+        const res = await fetch(`/api/paiements/${editing.id_paiement}`, {
           method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ id_client: Number(form.id_client), mois_paye: form.mois_paye, montant: form.montant }),
         });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Impossible de modifier le paiement.");
+        }
         setEditing(null);
       } else {
         const res = await fetch('/api/paiements', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ id_client: Number(form.id_client), mois_paye: form.mois_paye, montant: form.montant }) });
         const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Impossible de créer le paiement.");
         createdPaiement = data.paiement;
       }
       
@@ -159,16 +165,16 @@ export default function PaiementsPage() {
             <div class="badge">✅ PAIEMENT CONFIRMÉ</div>
           </div>
           <h2 style="margin-bottom: 6px;">Reçu de Paiement</h2>
-          <p style="color: #64748b; font-size: 0.9rem;">N° de reçu : <strong>${p.numero_recu || 'N/A'}</strong></p>
+          <p style="color: #64748b; font-size: 0.9rem;">N° de reçu : <strong>${escapeHtml(p.numero_recu || 'N/A')}</strong></p>
           <dl>
             <dt>Locataire</dt>
-            <dd><strong>${p.client?.prenom} ${p.client?.nom}</strong></dd>
+            <dd><strong>${escapeHtml(p.client?.prenom)} ${escapeHtml(p.client?.nom)}</strong></dd>
             <dt>Mois payé</dt>
-            <dd>${p.mois_paye}</dd>
+            <dd>${escapeHtml(p.mois_paye)}</dd>
             <dt>Date de paiement</dt>
             <dd>${new Date(p.date_paiement).toLocaleDateString('fr-FR')}</dd>
             <dt>Statut</dt>
-            <dd>${p.statut}</dd>
+            <dd>${escapeHtml(p.statut)}</dd>
           </dl>
           <div class="amount-box">
             <p style="margin: 0 0 8px; color: #64748b; font-size: 0.9rem;">Montant encaissé</p>
@@ -187,7 +193,6 @@ export default function PaiementsPage() {
   function exportFinancialPDF() {
     const printWindow = window.open("", "_blank");
     if (!printWindow) return;
-    const totalAll = paiements.reduce((s, p) => s + p.montant, 0);
     const html = `
       <html>
         <head>
@@ -213,7 +218,7 @@ export default function PaiementsPage() {
           <div class="subtitle">État des paiements au ${new Date().toLocaleDateString('fr-FR')}</div>
           <div class="kpi-row">
             <div class="kpi"><div class="kpi-value">${paiements.length}</div><div class="kpi-label">Paiements enregistrés</div></div>
-            <div class="kpi"><div class="kpi-value">${totalAll.toLocaleString()} GNF</div><div class="kpi-label">Total encaissé</div></div>
+            <div class="kpi"><div class="kpi-value">${totalEncaisse.toLocaleString()} GNF</div><div class="kpi-label">Total encaissé selon les filtres</div></div>
           </div>
           <table>
             <thead>
@@ -222,9 +227,9 @@ export default function PaiementsPage() {
             <tbody>
               ${filtered.map(p => `
                 <tr>
-                  <td>${p.client?.prenom} ${p.client?.nom}</td>
-                  <td>${p.mois_paye}</td>
-                  <td style="font-family: monospace; font-size: 0.82rem;">${p.numero_recu || '-'}</td>
+                  <td>${escapeHtml(p.client?.prenom)} ${escapeHtml(p.client?.nom)}</td>
+                  <td>${escapeHtml(p.mois_paye)}</td>
+                  <td style="font-family: monospace; font-size: 0.82rem;">${escapeHtml(p.numero_recu || '-')}</td>
                   <td>${new Date(p.date_paiement).toLocaleDateString('fr-FR')}</td>
                   <td><strong>${p.montant.toLocaleString()}</strong></td>
                 </tr>
@@ -383,4 +388,3 @@ export default function PaiementsPage() {
     </main>
   );
 }
-

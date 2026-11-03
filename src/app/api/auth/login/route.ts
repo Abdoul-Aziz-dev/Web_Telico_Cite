@@ -1,14 +1,17 @@
 import { NextResponse } from "next/server";
-import { cookies, headers } from "next/headers";
+import { headers } from "next/headers";
 import { prisma } from "../../../../../prisma/client";
 import bcrypt from "bcryptjs";
+import { createSessionToken, setSessionCookie } from "../../../../lib/session";
 
 export async function POST(req: Request) {
   try {
-    const { login, password } = await req.json();
+    const body = await req.json();
+    const login = typeof body.login === "string" ? body.login.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
     const ip = headers().get("x-forwarded-for") ?? headers().get("x-real-ip") ?? "inconnue";
 
-    if (!login || !password) {
+    if (!login || !password || login.length > 80 || password.length > 1024) {
       return NextResponse.json({ error: "Informations manquantes" }, { status: 400 });
     }
 
@@ -32,14 +35,18 @@ export async function POST(req: Request) {
       await prisma.user.update({ where: { id_user: user.id_user }, data: { mot_de_passe: hashed } });
     }
 
-    const sessionData = { id_user: user.id_user, nom: user.nom, prenom: user.prenom, login: user.login, role: user.role };
-
-    cookies().set("user_session", JSON.stringify(sessionData), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
+    if (user.role !== "gerant" && user.role !== "visiteur") {
+      return NextResponse.json({ error: "Compte désactivé" }, { status: 403 });
+    }
+    const sessionData = {
+      id_user: user.id_user,
+      nom: user.nom,
+      prenom: user.prenom,
+      login: user.login,
+      role: user.role === "gerant" ? "gerant" as const : "visiteur" as const,
+    };
+    const response = NextResponse.json({ success: true, user: sessionData });
+    setSessionCookie(response, await createSessionToken(sessionData));
 
     // Enregistrer la connexion
     await Promise.all([
@@ -47,7 +54,7 @@ export async function POST(req: Request) {
       prisma.auditLog.create({ data: { utilisateur: user.login, id_user: user.id_user, action: "CONNEXION", details: `${user.prenom} ${user.nom} (${user.role}) connecté`, ip } }),
     ]);
 
-    return NextResponse.json({ success: true, user: sessionData });
+    return response;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erreur inconnue";
     return NextResponse.json({ error: "Erreur serveur: " + msg }, { status: 500 });

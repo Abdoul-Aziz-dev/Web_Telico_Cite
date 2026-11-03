@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { escapeHtml } from "../../../lib/html";
 
 type Cloture = {
   id_cloture: number;
@@ -18,21 +19,18 @@ export default function CloturesPage() {
   const [clotures, setClotures] = useState<Cloture[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const now = new Date();
   const [form, setForm] = useState({
-    mois: "",
-    date_cloture: new Date().toISOString().slice(0, 10),
-    total_du: 0,
-    total_encaisse: 0,
-    total_depense: 0,
-    solde: 0,
-    statut: "Valide",
+    mois: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
     commentaire: "",
   });
+  const [report, setReport] = useState<{ total_du: number; total_encaisse: number; total_depense: number; solde: number } | null>(null);
 
   async function load() {
     setLoading(true);
     try {
       const res = await fetch("/api/clotures");
+      if (!res.ok) throw new Error("Impossible de charger l'historique des clôtures.");
       const data = await res.json();
       setClotures(data.clotures || []);
       setError(null);
@@ -46,18 +44,37 @@ export default function CloturesPage() {
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    setForm(f => ({ ...f, solde: f.total_encaisse - f.total_depense }));
-  }, [form.total_encaisse, form.total_depense]);
+    let active = true;
+    if (!form.mois) {
+      setReport(null);
+      return;
+    }
+    fetch(`/api/clotures?mois=${encodeURIComponent(form.mois)}`)
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Calcul du bilan impossible.");
+        if (active) setReport(data.report);
+      })
+      .catch((err: unknown) => {
+        if (active) {
+          setReport(null);
+          setError(err instanceof Error ? err.message : "Calcul du bilan impossible.");
+        }
+      });
+    return () => { active = false; };
+  }, [form.mois]);
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     try {
-      await fetch("/api/clotures", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
-      setForm({ mois: "", date_cloture: new Date().toISOString().slice(0, 10), total_du: 0, total_encaisse: 0, total_depense: 0, solde: 0, statut: "Valide", commentaire: "" });
-      load();
+      const res = await fetch("/api/clotures", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Impossible de créer la clôture.");
+      setForm({ mois: "", commentaire: "" });
+      await load();
       setError(null);
-    } catch {
-      setError("Impossible de creer la cloture.");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "Impossible de créer la clôture.");
     }
   }
 
@@ -75,13 +92,13 @@ export default function CloturesPage() {
       const sc = c.solde >= 0 ? "pos" : "neg";
       const sp = c.solde >= 0 ? "+" : "";
       return `<tr>
-        <td><strong>${c.mois}</strong></td>
+        <td><strong>${escapeHtml(c.mois)}</strong></td>
         <td>${new Date(c.date_cloture).toLocaleDateString("fr-FR")}</td>
         <td>${c.total_du.toLocaleString()}</td>
         <td class="pos">${c.total_encaisse.toLocaleString()}</td>
         <td class="neg">${c.total_depense.toLocaleString()}</td>
         <td class="${sc}">${sp}${c.solde.toLocaleString()}</td>
-        <td>${c.statut}</td>
+        <td>${escapeHtml(c.statut)}</td>
       </tr>`;
     }).join("");
 
@@ -175,40 +192,22 @@ export default function CloturesPage() {
           <form id="cloture-form" className="form-grid" onSubmit={save}>
             <div className="form-field">
               <label>Mois</label>
-              <input className="input" placeholder="ex: Juillet 2026" value={form.mois} onChange={e => setForm({ ...form, mois: e.target.value })} required />
+              <input className="input" type="month" value={form.mois} onChange={e => setForm({ ...form, mois: e.target.value })} required />
             </div>
-            <div className="form-field">
-              <label>Date de cloture</label>
-              <input className="input" type="date" value={form.date_cloture} onChange={e => setForm({ ...form, date_cloture: e.target.value })} required />
-            </div>
-            <div className="form-field">
-              <label>Total du cette periode</label>
-              <input className="input" type="number" min="0" value={form.total_du} onChange={e => setForm({ ...form, total_du: Number(e.target.value) })} required />
-            </div>
-            <div className="form-field">
-              <label>Total encaisse</label>
-              <input className="input" type="number" min="0" value={form.total_encaisse} onChange={e => setForm(f => ({ ...f, total_encaisse: Number(e.target.value), solde: Number(e.target.value) - f.total_depense }))} required />
-            </div>
-            <div className="form-field">
-              <label>Total depenses</label>
-              <input className="input" type="number" min="0" value={form.total_depense} onChange={e => setForm(f => ({ ...f, total_depense: Number(e.target.value), solde: f.total_encaisse - Number(e.target.value) }))} required />
-            </div>
-            <div className="form-field">
-              <label>Solde (auto-calcule)</label>
-              <input className="input" type="number" value={form.solde} readOnly style={{ opacity: 0.7, cursor: "not-allowed", color: form.solde >= 0 ? "#34d399" : "#f87171" }} />
-            </div>
-            <div className="form-field">
-              <label>Statut</label>
-              <select className="select" value={form.statut} onChange={e => setForm({ ...form, statut: e.target.value })}>
-                <option value="Valide">Valide</option>
-                <option value="En attente">En attente</option>
-              </select>
-            </div>
+            {report && (
+              <div className="panel" style={{ gridColumn: "1 / -1", margin: 0 }}>
+                <strong>Bilan calculé depuis les opérations enregistrées</strong>
+                <p>Total dû : {report.total_du.toLocaleString()} GNF</p>
+                <p>Encaissé : {report.total_encaisse.toLocaleString()} GNF</p>
+                <p>Dépenses : {report.total_depense.toLocaleString()} GNF</p>
+                <p>Solde : <strong style={{ color: report.solde >= 0 ? "#34d399" : "#f87171" }}>{report.solde.toLocaleString()} GNF</strong></p>
+              </div>
+            )}
             <div className="form-field">
               <label>Commentaire (optionnel)</label>
               <input className="input" value={form.commentaire} onChange={e => setForm({ ...form, commentaire: e.target.value })} placeholder="Remarques supplementaires..." />
             </div>
-            <button className="btn btn-primary" type="submit">✅ Creer la cloture</button>
+            <button className="btn btn-primary" type="submit" disabled={!report}>✅ Créer la clôture calculée</button>
             {error && <p className="status-pill status-warning">{error}</p>}
           </form>
         </div>

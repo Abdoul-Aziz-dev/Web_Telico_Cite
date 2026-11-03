@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { escapeHtml } from "../../../lib/html";
 
 const ITEMS_PAR_PAGE = 10;
 
@@ -42,16 +43,24 @@ export default function DepensesPage() {
     e.preventDefault();
     try {
       if (editing) {
-        await fetch(`/api/depenses/${editing.id_depense}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+        const res = await fetch(`/api/depenses/${editing.id_depense}`, { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Impossible de modifier la dépense.");
+        }
         setEditing(null);
       } else {
-        await fetch("/api/depenses", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+        const res = await fetch("/api/depenses", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(form) });
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || "Impossible de créer la dépense.");
+        }
       }
       setForm({ libelle: "", montant: 0, date_depense: new Date().toISOString().slice(0, 10) });
       load();
       setError(null);
-    } catch {
-      setError("Impossible d'enregistrer la dépense.");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "Impossible d'enregistrer la dépense.");
     }
   }
 
@@ -64,7 +73,11 @@ export default function DepensesPage() {
   async function handleDelete(id: number) {
     if (!confirm("Supprimer cette dépense ?")) return;
     try {
-      await fetch(`/api/depenses/${id}`, { method: "DELETE" });
+      const res = await fetch(`/api/depenses/${id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Impossible de supprimer la dépense.");
+      }
       load();
     } catch {
       setError("Impossible de supprimer la dépense.");
@@ -100,9 +113,9 @@ export default function DepensesPage() {
       </style></head>
       <body onload="window.print();window.close()">
         <h1>Cité Telico — Rapport des Dépenses</h1>
-        <div class="sub">Période : ${filterDebut || "—"} → ${filterFin || "—"} — Généré le ${new Date().toLocaleDateString("fr-FR")}</div>
+        <div class="sub">Période : ${escapeHtml(filterDebut || "—")} → ${escapeHtml(filterFin || "—")} — Généré le ${new Date().toLocaleDateString("fr-FR")}</div>
         <table><thead><tr><th>ID</th><th>Libellé</th><th>Date</th><th>Montant (GNF)</th></tr></thead><tbody>
-        ${filtered.map(d => `<tr><td>#${d.id_depense}</td><td>${d.libelle}</td><td>${new Date(d.date_depense).toLocaleDateString("fr-FR")}</td><td>${d.montant.toLocaleString()}</td></tr>`).join("")}
+        ${filtered.map(d => `<tr><td>#${d.id_depense}</td><td>${escapeHtml(d.libelle)}</td><td>${new Date(d.date_depense).toLocaleDateString("fr-FR")}</td><td>${d.montant.toLocaleString()}</td></tr>`).join("")}
         <tr class="total"><td colspan="3">TOTAL (${filtered.length} dépenses)</td><td>${totalFiltre.toLocaleString()} GNF</td></tr>
         </tbody></table>
         <div class="footer">Cité Telico &copy; ${new Date().getFullYear()}</div>

@@ -10,6 +10,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ nom: string; prenom: string; role: string } | null>(null);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("site_theme") as "dark" | "light" | null;
@@ -23,6 +24,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     setTheme(newTheme);
     localStorage.setItem("site_theme", newTheme);
   };
+
+  // Fermer la sidebar à chaque changement de page
+  useEffect(() => {
+    setSidebarOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     let isMounted = true;
@@ -128,8 +134,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className={`admin-shell ${theme === "light" ? "light-mode" : ""}`}>
+      {/* Overlay mobile */}
+      <div
+        className={`sidebar-overlay ${sidebarOpen ? "visible" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+      />
       {/* Sidebar de navigation */}
-      <aside className="admin-sidebar">
+      <aside className={`admin-sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="brand">
           <img src="/logo.png" alt="Cité Telico Logo" className="brand-logo-img" />
           <div className="brand-texts">
@@ -170,6 +181,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* Zone de contenu principale de l'administration */}
       <div className="admin-main">
         <header className="admin-topbar">
+          <button
+            className="hamburger-btn"
+            onClick={() => setSidebarOpen(prev => !prev)}
+            aria-label="Ouvrir le menu"
+          >
+            ☰
+          </button>
           <div className="admin-breadcrumb">
             Gestion immobilière &gt; {menuItems.find((item) => item.href === pathname)?.label || "Administration"}
           </div>

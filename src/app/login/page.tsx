@@ -84,7 +84,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="form-grid">
+        <form onSubmit={handleSubmit} className="form-grid" autoComplete="off">
           {!isLogin && (
             <>
               <div className="form-field">
@@ -99,11 +99,11 @@ export default function LoginPage() {
           )}
           <div className="form-field">
             <label>Identifiant / Login</label>
-            <input className="input" type="text" required value={form.login} onChange={(e) => setForm({ ...form, login: e.target.value })} placeholder="ex: aziz" autoCapitalize="none" />
+            <input className="input" type="text" name="username" autoComplete="off" required maxLength={80} value={form.login} onChange={(e) => setForm({ ...form, login: e.target.value })} autoCapitalize="none" />
           </div>
           <div className="form-field">
-            <label>Mot de passe {!isLogin && <span style={{ color: "#64748b", fontSize: "0.8rem" }}>(min. 6 caractères)</span>}</label>
-            <input className="input" type="password" required minLength={isLogin ? undefined : 6} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="••••••••" />
+            <label>Mot de passe {!isLogin && <span style={{ color: "#64748b", fontSize: "0.8rem" }}>(min. 12 caractères)</span>}</label>
+            <input className="input" type="password" name="password" autoComplete="new-password" required minLength={isLogin ? undefined : 12} value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
           </div>
           <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: "100%", marginTop: "10px" }}>
             {loading ? "Chargement..." : isLogin ? "Se connecter" : "S'inscrire"}

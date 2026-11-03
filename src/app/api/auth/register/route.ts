@@ -1,18 +1,20 @@
 import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
 import { prisma } from "../../../../../prisma/client";
 import bcrypt from "bcryptjs";
+import { createSessionToken, setSessionCookie } from "../../../../lib/session";
 
 export async function POST(req: Request) {
   try {
-    const { nom, prenom, login, password } = await req.json();
-
-    if (!nom || !prenom || !login || !password) {
-      return NextResponse.json({ error: "Tous les champs sont requis" }, { status: 400 });
+    const body = await req.json();
+    const nom = typeof body.nom === "string" ? body.nom.trim() : "";
+    const prenom = typeof body.prenom === "string" ? body.prenom.trim() : "";
+    const login = typeof body.login === "string" ? body.login.trim() : "";
+    const password = typeof body.password === "string" ? body.password : "";
+    if (!nom || !prenom || !login || nom.length > 100 || prenom.length > 100 || login.length > 80) {
+      return NextResponse.json({ error: "Nom, prénom et identifiant valides sont obligatoires" }, { status: 400 });
     }
-
-    if (password.length < 6) {
-      return NextResponse.json({ error: "Le mot de passe doit contenir au moins 6 caractères" }, { status: 400 });
+    if (password.length < 12) {
+      return NextResponse.json({ error: "Le mot de passe doit contenir au moins 12 caractères" }, { status: 400 });
     }
 
     const exists = await prisma.user.findUnique({ where: { login } });
@@ -31,17 +33,12 @@ export async function POST(req: Request) {
       nom: user.nom,
       prenom: user.prenom,
       login: user.login,
-      role: user.role,
+      role: "visiteur" as const,
     };
 
-    cookies().set("user_session", JSON.stringify(sessionData), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 60 * 60 * 24 * 7,
-      path: "/",
-    });
-
-    return NextResponse.json({ success: true, user: sessionData }, { status: 201 });
+    const response = NextResponse.json({ success: true, user: sessionData }, { status: 201 });
+    setSessionCookie(response, await createSessionToken(sessionData));
+    return response;
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : "Erreur inconnue";
     return NextResponse.json({ error: "Erreur serveur: " + msg }, { status: 500 });

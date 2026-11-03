@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { escapeHtml } from "../../../lib/html";
 
 type Contrat = {
   id_contrat: number;
@@ -60,39 +61,51 @@ export default function ContratsPage() {
     e.preventDefault();
     try {
       const payload = { id_client: Number(form.id_client), chambreIds: form.chambreIds, date_debut: form.date_debut, date_fin: form.date_fin || null, montant: form.montant };
-      await fetch('/api/contrats', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      const res = await fetch('/api/contrats', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Impossible de créer le contrat.");
+      }
       setForm({ id_client: '', chambreIds: [], date_debut: new Date().toISOString().slice(0, 10), date_fin: '', montant: 0 });
       setShowForm(false);
       await load();
       setError(null);
-    } catch {
-      setError('Impossible de creer le contrat.');
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Impossible de créer le contrat.');
     }
   }
 
   async function handleTerminate(id: number) {
     if (!confirm('Voulez-vous résilier ce contrat ? Les chambres associées seront libérées et le locataire sera marqué inactif.')) return;
     try {
-      await fetch(`/api/contrats/${id}`, {
+      const res = await fetch(`/api/contrats/${id}`, {
         method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ date_fin: new Date().toISOString().slice(0, 10) })
       });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Impossible de résilier le contrat.");
+      }
       load();
       setError(null);
-    } catch {
-      setError('Impossible de résilier le contrat.');
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Impossible de résilier le contrat.');
     }
   }
 
   async function handleDelete(id: number) {
     if (!confirm('Supprimer ce contrat ? Cette action est irreversible.')) return;
     try {
-      await fetch(`/api/contrats/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/contrats/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Impossible de supprimer le contrat.");
+      }
       load();
       setError(null);
-    } catch {
-      setError('Impossible de supprimer le contrat.');
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : 'Impossible de supprimer le contrat.');
     }
   }
 
@@ -141,7 +154,7 @@ export default function ContratsPage() {
           <div class="section">
             <h2 class="section-title">1. Les Parties Contratantes</h2>
             <p><strong>Bailleur :</strong> La direction de la Cité Telico, représentée par le Gérant en fonction.</p>
-            <p><strong>Preneur (Locataire) :</strong> M./Mme <strong>${ct.client?.prenom} ${ct.client?.nom}</strong>, résidant de la Cité.</p>
+            <p><strong>Preneur (Locataire) :</strong> M./Mme <strong>${escapeHtml(ct.client?.prenom)} ${escapeHtml(ct.client?.nom)}</strong>, résidant de la Cité.</p>
           </div>
 
           <div class="section">
@@ -157,7 +170,7 @@ export default function ContratsPage() {
               </thead>
               <tbody>
                 <tr>
-                  <td><strong>Chambre N° ${roomNumbers}</strong></td>
+                  <td><strong>Chambre N° ${escapeHtml(roomNumbers)}</strong></td>
                   <td>Chambre individuelle de haut standing, Cité Telico</td>
                   <td><strong>${ct.montant.toLocaleString()} GNF</strong></td>
                 </tr>
@@ -193,7 +206,7 @@ export default function ContratsPage() {
               <em>(Signature & Cachet)</em>
             </div>
             <div class="signature-box">
-              Le Preneur (Locataire : M./Mme ${ct.client?.nom})<br>
+              Le Preneur (Locataire : M./Mme ${escapeHtml(ct.client?.nom)})<br>
               <em>("Lu et approuvé, je m'engage à respecter le règlement")</em>
             </div>
           </div>

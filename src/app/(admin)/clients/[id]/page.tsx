@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { escapeHtml } from "../../../../lib/html";
 
 type Chambre = { numero: string; type_chambre: string; prix: number; statut: string };
 type ContratChambre = { chambre?: { numero: string } | null };
@@ -62,7 +63,7 @@ export default function FicheClientPage() {
     if (!win) return;
     const totalPaye = (client.paiements || []).reduce((s, p) => s + p.montant, 0);
     win.document.write(`
-      <html><head><title>Fiche Locataire - ${client.prenom} ${client.nom}</title>
+      <html><head><title>Fiche Locataire - ${escapeHtml(client.prenom)} ${escapeHtml(client.nom)}</title>
       <style>
         body{font-family:Arial,sans-serif;color:#1e293b;padding:40px;line-height:1.6}
         h1{color:#0f172a;border-bottom:2px solid #0f172a;padding-bottom:10px}
@@ -77,20 +78,20 @@ export default function FicheClientPage() {
       </style></head>
       <body onload="window.print();window.close()">
         <h1>Fiche Locataire — Cité Telico</h1>
-        <p><strong>Nom complet :</strong> ${client.prenom} ${client.nom} &nbsp;|&nbsp;
+        <p><strong>Nom complet :</strong> ${escapeHtml(client.prenom)} ${escapeHtml(client.nom)} &nbsp;|&nbsp;
            <strong>Sexe :</strong> ${client.sexe === "M" ? "Masculin" : "Féminin"} &nbsp;|&nbsp;
-           <strong>Statut :</strong> <span class="badge ${client.statut === "Actif" ? "actif" : "inactif"}">${client.statut}</span></p>
-        <p><strong>Téléphone :</strong> ${client.telephone || "—"} &nbsp;|&nbsp;
-           <strong>Profession :</strong> ${client.profession || "—"} &nbsp;|&nbsp;
+           <strong>Statut :</strong> <span class="badge ${client.statut === "Actif" ? "actif" : "inactif"}">${escapeHtml(client.statut)}</span></p>
+        <p><strong>Téléphone :</strong> ${escapeHtml(client.telephone || "—")} &nbsp;|&nbsp;
+           <strong>Profession :</strong> ${escapeHtml(client.profession || "—")} &nbsp;|&nbsp;
            <strong>Date d'entrée :</strong> ${fmt(client.date_entree)}</p>
         ${client.chambre ? `
         <h2>Logement Actuel</h2>
-        <p>Chambre N° <strong>${client.chambre.numero}</strong> — ${client.chambre.type_chambre} — <strong>${client.chambre.prix.toLocaleString()} GNF/mois</strong></p>` : ""}
+        <p>Chambre N° <strong>${escapeHtml(client.chambre.numero)}</strong> — ${escapeHtml(client.chambre.type_chambre)} — <strong>${client.chambre.prix.toLocaleString()} GNF/mois</strong></p>` : ""}
         <h2>Contrats (${(client.contrats || []).length})</h2>
         <table><thead><tr><th>N°</th><th>Chambre(s)</th><th>Début</th><th>Fin</th><th>Loyer mensuel</th></tr></thead><tbody>
         ${(client.contrats || []).map(ct => `<tr>
           <td>#${ct.id_contrat}</td>
-          <td>${ct.contrat_chambres.map(cc => cc.chambre?.numero).filter(Boolean).join(", ") || "—"}</td>
+          <td>${escapeHtml(ct.contrat_chambres.map(cc => cc.chambre?.numero).filter(Boolean).join(", ") || "—")}</td>
           <td>${fmt(ct.date_debut)}</td>
           <td>${ct.date_fin ? fmt(ct.date_fin) : "En cours"}</td>
           <td>${ct.montant.toLocaleString()} GNF</td>
@@ -100,10 +101,10 @@ export default function FicheClientPage() {
         <table><thead><tr><th>Date</th><th>Mois payé</th><th>N° Reçu</th><th>Montant</th><th>Statut</th></tr></thead><tbody>
         ${(client.paiements || []).map(p => `<tr>
           <td>${fmt(p.date_paiement)}</td>
-          <td>${p.mois_paye}</td>
-          <td>${p.numero_recu || "—"}</td>
+          <td>${escapeHtml(p.mois_paye)}</td>
+          <td>${escapeHtml(p.numero_recu || "—")}</td>
           <td>${p.montant.toLocaleString()} GNF</td>
-          <td>${p.statut}</td>
+          <td>${escapeHtml(p.statut)}</td>
         </tr>`).join("")}
         </tbody></table>
         <div class="footer">Cité Telico — Document généré le ${new Date().toLocaleDateString("fr-FR")}</div>
